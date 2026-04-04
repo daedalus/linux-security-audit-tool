@@ -26,11 +26,12 @@ from security_audit.phases import (
 console = Console()
 
 
-def print_finding(finding: Finding) -> None:
+def print_finding(finding: Finding, verbose: bool = False) -> None:
     """Print a single finding with severity color.
 
     Args:
         finding: The Finding object to print.
+        verbose: Whether to show description and remediation.
     """
     colors = {
         Severity.CRITICAL: "red bold",
@@ -43,6 +44,11 @@ def print_finding(finding: Finding) -> None:
     rprint(
         f"[{color}]{finding.severity.value}[/{color}] [{color}]{finding.check_id}[/{color}]: {finding.title}"
     )
+    if verbose:
+        if finding.description:
+            rprint(f"  {finding.description}")
+        if finding.remediation:
+            rprint(f"  [dim]Remediation: {finding.remediation}[/dim]")
 
 
 def print_summary(findings: list[Finding]) -> None:
@@ -103,10 +109,17 @@ def cli() -> None:
     is_flag=True,
     help="Suppress detailed output",
 )
+@click.option(
+    "--verbose",
+    "-v",
+    is_flag=True,
+    help="Show detailed output including descriptions and remediation",
+)
 def audit(
     output: str | None,
     phases: tuple,
     quiet: bool,
+    verbose: bool,
 ) -> None:
     """Run a full security audit."""
     console.print("[bold blue]Linux Security Audit Tool v0.1.0[/bold blue]")
@@ -138,7 +151,7 @@ def audit(
             all_findings.extend(findings)
             if not quiet:
                 for f in findings:
-                    print_finding(f)
+                    print_finding(f, verbose=verbose)
             progress.update(task, completed=True)
 
         if 2 in selected_phases:
@@ -147,7 +160,7 @@ def audit(
             all_findings.extend(findings)
             if not quiet:
                 for f in findings:
-                    print_finding(f)
+                    print_finding(f, verbose=verbose)
             progress.update(task, completed=True)
 
         if 3 in selected_phases:
@@ -158,7 +171,7 @@ def audit(
             all_findings.extend(findings)
             if not quiet:
                 for f in findings:
-                    print_finding(f)
+                    print_finding(f, verbose=verbose)
             progress.update(task, completed=True)
 
         if 4 in selected_phases:
@@ -169,7 +182,7 @@ def audit(
             all_findings.extend(findings)
             if not quiet:
                 for f in findings:
-                    print_finding(f)
+                    print_finding(f, verbose=verbose)
             progress.update(task, completed=True)
 
         if 5 in selected_phases:
@@ -178,7 +191,7 @@ def audit(
             all_findings.extend(findings)
             if not quiet:
                 for f in findings:
-                    print_finding(f)
+                    print_finding(f, verbose=verbose)
             progress.update(task, completed=True)
 
         if 6 in selected_phases:
@@ -187,7 +200,7 @@ def audit(
             all_findings.extend(findings)
             if not quiet:
                 for f in findings:
-                    print_finding(f)
+                    print_finding(f, verbose=verbose)
             progress.update(task, completed=True)
 
         if 7 in selected_phases:
@@ -196,7 +209,7 @@ def audit(
             all_findings.extend(findings)
             if not quiet:
                 for f in findings:
-                    print_finding(f)
+                    print_finding(f, verbose=verbose)
             progress.update(task, completed=True)
 
         if 8 in selected_phases:
@@ -205,7 +218,7 @@ def audit(
             all_findings.extend(findings)
             if not quiet:
                 for f in findings:
-                    print_finding(f)
+                    print_finding(f, verbose=verbose)
             progress.update(task, completed=True)
 
         if 9 in selected_phases:
