@@ -205,6 +205,78 @@ def check_kernel_module_blacklist() -> list[Finding]:
     return findings
 
 
+def check_sysrq_status() -> list[Finding]:
+    """Check SysRq key status."""
+    findings = []
+
+    stdout, _, rc = run_command("sysctl -n kernel.sysrq 2>/dev/null")
+    if rc == 0:
+        if stdout.strip() != "0":
+            findings.append(
+                Finding(
+                    severity=Severity.MEDIUM,
+                    check_id="KERN-010",
+                    title="SysRq Key Enabled",
+                    description=f"Current value: {stdout.strip()}, expected: 0",
+                    evidence=f"kernel.sysrq = {stdout.strip()}",
+                    impact="SysRq can be used for system control even if compromised",
+                    remediation="Set kernel.sysrq = 0",
+                    phase="Phase 5",
+                )
+            )
+
+    return findings
+
+
+def check_vm_swappiness() -> list[Finding]:
+    """Check VM swappiness setting."""
+    findings = []
+
+    stdout, _, rc = run_command("sysctl -n vm.swappiness 2>/dev/null")
+    if rc == 0:
+        val = int(stdout.strip() or 0)
+        if val > 10:
+            findings.append(
+                Finding(
+                    severity=Severity.LOW,
+                    check_id="KERN-011",
+                    title="High VM Swappiness",
+                    description=f"Current value: {val}, recommended: <= 10",
+                    evidence=f"vm.swappiness = {val}",
+                    impact="High swappiness may lead to swap usage affecting security",
+                    remediation="Set vm.swappiness = 10 or lower",
+                    phase="Phase 5",
+                )
+            )
+
+    return findings
+
+
+def check_user_namespaces() -> list[Finding]:
+    """Check user namespace restrictions."""
+    findings = []
+
+    stdout, _, rc = run_command(
+        "sysctl -n kernel.unprivileged_userns_clone 2>/dev/null"
+    )
+    if rc == 0:
+        if stdout.strip() != "0":
+            findings.append(
+                Finding(
+                    severity=Severity.LOW,
+                    check_id="KERN-012",
+                    title="User Namespaces Unrestricted",
+                    description=f"Current value: {stdout.strip()}, recommended: 0",
+                    evidence=f"kernel.unprivileged_userns_clone = {stdout.strip()}",
+                    impact="Unprivileged users can create namespaces",
+                    remediation="Set kernel.unprivileged_userns_clone = 0",
+                    phase="Phase 5",
+                )
+            )
+
+    return findings
+
+
 def run_kernel_checks() -> list[Finding]:
     """Run all kernel and OS hardening checks."""
     findings = []
@@ -217,5 +289,8 @@ def run_kernel_checks() -> list[Finding]:
     findings.extend(check_protected_symlinks())
     findings.extend(check_protected_hardlinks())
     findings.extend(check_kernel_module_blacklist())
+    findings.extend(check_sysrq_status())
+    findings.extend(check_vm_swappiness())
+    findings.extend(check_user_namespaces())
 
     return findings

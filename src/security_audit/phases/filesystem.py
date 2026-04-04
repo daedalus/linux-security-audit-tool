@@ -233,6 +233,118 @@ def check_cron_jobs() -> list[Finding]:
     return findings
 
 
+def check_ssh_private_key_permissions() -> list[Finding]:
+    """Check SSH private key file permissions."""
+    findings = []
+
+    stdout, _, _ = run_command(
+        "find /home /root /etc/ssh -name 'ssh_host_*_key' -type f 2>/dev/null"
+    )
+    if stdout:
+        for path in stdout.strip().split("\n"):
+            perms, _, rc = run_command(f"stat -c '%a' {path} 2>/dev/null")
+            if rc == 0 and perms.strip() != "600":
+                findings.append(
+                    Finding(
+                        severity=Severity.HIGH,
+                        check_id="FS-009",
+                        title=f"Weak SSH Private Key Permissions: {path}",
+                        description=f"Current permissions: {perms.strip()}, expected: 600",
+                        evidence=f"Permissions: {perms}",
+                        impact="Private key may be readable by other users",
+                        remediation=f"Set permissions: chmod 600 {path}",
+                        phase="Phase 3",
+                    )
+                )
+
+    return findings
+
+
+def check_tmp_sensitive_files() -> list[Finding]:
+    """Check for sensitive files in /tmp."""
+    findings = []
+
+    stdout, _, rc = run_command(
+        "find /tmp -xdev -type f \\( -name '*.conf' -o -name '*.cnf' -o -name '*.key' -o -name '*.pem' -o -name '*.passwd' -o -name '*.shadow' \\) -perm -004 2>/dev/null | head -20"
+    )
+    if rc == 0 and stdout and stdout.strip():
+        findings.append(
+            Finding(
+                severity=Severity.MEDIUM,
+                check_id="FS-010",
+                title="Sensitive Files in /tmp",
+                description="Sensitive files with world-readable permissions in /tmp",
+                evidence=stdout,
+                impact="Sensitive data may be accessible to other users",
+                remediation="Move sensitive files to secure locations",
+                phase="Phase 3",
+            )
+        )
+
+    return findings
+
+
+def check_backup_files() -> list[Finding]:
+    """Check for backup files in /etc."""
+    findings = []
+
+    stdout, _, rc = run_command(
+        "find /etc -xdev -type f \\( -name '*.bak' -o -name '*.old' -o -name '*.swp' -o -name '*~' \\) 2>/dev/null | head -20"
+    )
+    if rc == 0 and stdout and stdout.strip():
+        findings.append(
+            Finding(
+                severity=Severity.LOW,
+                check_id="FS-011",
+                title="Backup Files Found in /etc",
+                description="Backup files found in /etc directory",
+                evidence=stdout,
+                impact="Backup files may contain sensitive information",
+                remediation="Remove backup files from /etc",
+                phase="Phase 3",
+            )
+        )
+
+    return findings
+
+
+def check_sudoers_integrity() -> list[Finding]:
+    """Check sudoers file integrity."""
+    findings = []
+
+    stdout, _, rc = run_command("stat -c '%y %n' /etc/sudoers 2>/dev/null")
+    if rc == 0 and stdout:
+        findings.append(
+            Finding(
+                severity=Severity.INFO,
+                check_id="FS-012",
+                title="/etc/sudoers Last Modified",
+                description="Last modification time of /etc/sudoers",
+                evidence=stdout,
+                impact="Monitor for unauthorized sudoers changes",
+                remediation="Review sudoers file changes",
+                phase="Phase 3",
+            )
+        )
+
+    stdout, _, rc = run_command("stat -c '%y %n' /etc/sudoers.d 2>/dev/null")
+    if rc == 0 and stdout:
+        findings.append(
+            Finding(
+                severity=Severity.INFO,
+                check_id="FS-013",
+                title="/etc/sudoers.d Last Modified",
+                description="Last modification time of /etc/sudoers.d",
+                evidence=stdout,
+                impact="Monitor for unauthorized sudoers.d changes",
+                remediation="Review sudoers.d file changes",
+                phase="Phase 3",
+            )
+        )
+
+    return findings
+
+
 def run_filesystem_checks() -> list[Finding]:
     """Run all file system and permissions checks."""
     findings = []
@@ -244,5 +356,9 @@ def run_filesystem_checks() -> list[Finding]:
     findings.extend(check_unowned_files())
     findings.extend(check_critical_file_permissions())
     findings.extend(check_cron_jobs())
+    findings.extend(check_ssh_private_key_permissions())
+    findings.extend(check_tmp_sensitive_files())
+    findings.extend(check_backup_files())
+    findings.extend(check_sudoers_integrity())
 
     return findings

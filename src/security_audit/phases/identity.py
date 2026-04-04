@@ -248,6 +248,154 @@ def check_unauthorized_ssh_keys() -> list[Finding]:
     return findings
 
 
+def check_password_policy() -> list[Finding]:
+    """Check password policy settings."""
+    findings = []
+
+    stdout, _, rc = run_command(
+        "grep -E '^PASS_MAX_DAYS|^PASS_MIN_DAYS|^PASS_WARN_AGE' /etc/login.defs 2>/dev/null"
+    )
+    if rc == 0 and stdout:
+        lines = stdout.strip().split("\n")
+        for line in lines:
+            if "PASS_MAX_DAYS" in line:
+                parts = line.split()
+                if len(parts) > 1:
+                    days = parts[1]
+                    if int(days) > 90:
+                        findings.append(
+                            Finding(
+                                severity=Severity.MEDIUM,
+                                check_id="IDENT-010",
+                                title="Excessive PASS_MAX_DAYS",
+                                description=f"Password max age: {days} days (recommended <= 90)",
+                                evidence=line,
+                                impact="Compromised passwords remain valid longer",
+                                remediation="Set PASS_MAX_DAYS to 90 or less in /etc/login.defs",
+                                phase="Phase 1",
+                            )
+                        )
+            elif "PASS_MIN_DAYS" in line:
+                parts = line.split()
+                if len(parts) > 1:
+                    days = parts[1]
+                    if int(days) < 1:
+                        findings.append(
+                            Finding(
+                                severity=Severity.LOW,
+                                check_id="IDENT-011",
+                                title="PASS_MIN_DAYS Too Low",
+                                description=f"Password min age: {days} days (recommended >= 1)",
+                                evidence=line,
+                                impact="Users can change passwords too quickly",
+                                remediation="Set PASS_MIN_DAYS to at least 1 in /etc/login.defs",
+                                phase="Phase 1",
+                            )
+                        )
+            elif "PASS_WARN_AGE" in line:
+                parts = line.split()
+                if len(parts) > 1:
+                    days = parts[1]
+                    if int(days) < 7:
+                        findings.append(
+                            Finding(
+                                severity=Severity.LOW,
+                                check_id="IDENT-012",
+                                title="PASS_WARN_AGE Too Low",
+                                description=f"Password warn age: {days} days (recommended >= 7)",
+                                evidence=line,
+                                impact="Users not warned early enough about expiring passwords",
+                                remediation="Set PASS_WARN_AGE to 7 or more in /etc/login.defs",
+                                phase="Phase 1",
+                            )
+                        )
+
+    return findings
+
+
+def check_password_expiry() -> list[Finding]:
+    """Check for expired passwords."""
+    findings = []
+
+    stdout, _, rc = run_command(
+        "sudo awk -F: '($1!~ /^root/ && $1!~ /^sync/ && $1!~ /^shutdown/ && $1!~ /^halt/ && $8~/^e/ && $7!~/nologin/) {print $1,$5,$6}' /etc/shadow 2>/dev/null"
+    )
+    if rc == 0 and stdout:
+        import time
+
+        current_time = int(time.time() / 86400)
+        for line in stdout.strip().split("\n"):
+            parts = line.split()
+            if len(parts) >= 3:
+                username, last_change, _ = parts[0], parts[1], parts[2]
+                try:
+                    last_change_day = int(last_change)
+                    days_since_change = current_time - last_change_day
+                    if days_since_change > 90:
+                        findings.append(
+                            Finding(
+                                severity=Severity.MEDIUM,
+                                check_id="IDENT-013",
+                                title=f"Password Not Changed Recently: {username}",
+                                description=f"Password last changed: {days_since_change} days ago",
+                                evidence=f"User: {username}, Days since change: {days_since_change}",
+                                impact="Account password may be compromised",
+                                remediation="Require password change for this user",
+                                phase="Phase 1",
+                            )
+                        )
+                except ValueError:
+                    pass
+
+    return findings
+
+
+def check_locked_accounts_with_shells() -> list[Finding]:
+    """Check for locked accounts that still have valid shells."""
+    findings = []
+
+    stdout, _, rc = run_command(
+        "awk -F: '$2 ~ /^!|^\\*$/ && $7 !~ /nologin|false/ {print}' /etc/passwd 2>/dev/null"
+    )
+    if rc == 0 and stdout and stdout.strip():
+        findings.append(
+            Finding(
+                severity=Severity.MEDIUM,
+                check_id="IDENT-014",
+                title="Locked Accounts With Valid Shells",
+                description="Accounts with locked passwords but valid shells",
+                evidence=stdout,
+                impact="Potential for unauthorized access if password is set",
+                remediation="Set shell to /usr/sbin/nologin for locked accounts",
+                phase="Phase 1",
+            )
+        )
+
+    return findings
+
+
+def check_group_modifications() -> list[Finding]:
+    """Check for recent modifications to /etc/group."""
+    findings = []
+
+    stdout, _, rc = run_command("stat -c '%y %n' /etc/group 2>/dev/null")
+    if rc == 0 and stdout:
+        findings.append(
+            Finding(
+                severity=Severity.INFO,
+                check_id="IDENT-015",
+                title="/etc/group Last Modified",
+                description="Last modification time of /etc/group",
+                evidence=stdout,
+                impact="Monitor for unauthorized group changes",
+                remediation="Review group membership changes",
+                phase="Phase 1",
+            )
+        )
+
+    return findings
+
+
 def run_identity_checks() -> list[Finding]:
     """Run all identity and access control checks."""
     findings = []
@@ -261,5 +409,9 @@ def run_identity_checks() -> list[Finding]:
     findings.extend(check_ssh_root_login())
     findings.extend(check_ssh_password_auth())
     findings.extend(check_unauthorized_ssh_keys())
+    findings.extend(check_password_policy())
+    findings.extend(check_password_expiry())
+    findings.extend(check_locked_accounts_with_shells())
+    findings.extend(check_group_modifications())
 
     return findings

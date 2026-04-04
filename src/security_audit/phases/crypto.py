@@ -176,6 +176,150 @@ def check_password_hashing() -> list[Finding]:
     return findings
 
 
+def check_ssh_key_exchange() -> list[Finding]:
+    """Check SSH key exchange algorithms."""
+    findings = []
+
+    weak_kex = ["diffie-hellman-group1-sha1", "diffie-hellman-group14-sha1"]
+
+    stdout, _, rc = run_command(
+        "grep -r 'KexAlgorithms\\|Ciphers\\|MACs' /etc/ssh/sshd_config 2>/dev/null"
+    )
+    if rc == 0 and stdout:
+        for alg in weak_kex:
+            if alg in stdout.lower():
+                findings.append(
+                    Finding(
+                        severity=Severity.MEDIUM,
+                        check_id="CRYPTO-008",
+                        title=f"Weak SSH Key Exchange: {alg}",
+                        description=f"Weak key exchange algorithm {alg} is configured",
+                        evidence=stdout,
+                        impact="Vulnerable to attacks on key exchange",
+                        remediation="Remove weak key exchange algorithms from sshd_config",
+                        phase="Phase 8",
+                    )
+                )
+    else:
+        findings.append(
+            Finding(
+                severity=Severity.LOW,
+                check_id="CRYPTO-009",
+                title="SSH Key Exchange Not Restricted",
+                description="No explicit key exchange algorithm restrictions found",
+                evidence="No KexAlgorithms in sshd_config",
+                impact="May allow weak key exchange algorithms",
+                remediation="Add KexAlgorithms to restrict key exchange",
+                phase="Phase 8",
+            )
+        )
+
+    return findings
+
+
+def check_ssh_ciphers() -> list[Finding]:
+    """Check SSH ciphers and MACs."""
+    findings = []
+
+    weak_ciphers = ["3des", "blowfish", "cast128", "arcfour"]
+
+    stdout, _, rc = run_command(
+        "grep -r 'Ciphers\\|MACs' /etc/ssh/sshd_config 2>/dev/null"
+    )
+    if rc == 0 and stdout:
+        for cipher in weak_ciphers:
+            if cipher in stdout.lower():
+                findings.append(
+                    Finding(
+                        severity=Severity.MEDIUM,
+                        check_id="CRYPTO-010",
+                        title=f"Weak SSH Cipher: {cipher}",
+                        description=f"Weak cipher {cipher} is configured",
+                        evidence=stdout,
+                        impact="Weak cryptographic cipher in use",
+                        remediation="Remove weak ciphers from sshd_config",
+                        phase="Phase 8",
+                    )
+                )
+    else:
+        findings.append(
+            Finding(
+                severity=Severity.LOW,
+                check_id="CRYPTO-011",
+                title="SSH Ciphers Not Restricted",
+                description="No explicit cipher restrictions found",
+                evidence="No Ciphers in sshd_config",
+                impact="May allow weak ciphers",
+                remediation="Add Ciphers to restrict allowed ciphers",
+                phase="Phase 8",
+            )
+        )
+
+    return findings
+
+
+def check_password_quality() -> list[Finding]:
+    """Check password quality via PAM configuration."""
+    findings = []
+
+    stdout, _, rc = run_command(
+        "grep -r 'password.*requisite\\|password.*required' /etc/pam.d/* 2>/dev/null | grep -i pam_unix.so|pam_pwquality.so|pam_cracklib.so"
+    )
+    if rc != 0 or not stdout:
+        findings.append(
+            Finding(
+                severity=Severity.MEDIUM,
+                check_id="CRYPTO-012",
+                title="PAM Password Quality Not Enforced",
+                description="No password quality checks in PAM configuration",
+                evidence="No pwquality or cracklib in pam.d",
+                impact="Users can set weak passwords",
+                remediation="Configure pam_pwquality or pam_cracklib in PAM",
+                phase="Phase 8",
+            )
+        )
+
+    return findings
+
+
+def check_disk_encryption() -> list[Finding]:
+    """Check disk encryption status."""
+    findings = []
+
+    stdout, _, rc = run_command("cryptsetup luksDump /dev/sda2 2>/dev/null")
+    if rc == 0 and stdout:
+        if "is not LUKS" not in stdout:
+            findings.append(
+                Finding(
+                    severity=Severity.INFO,
+                    check_id="CRYPTO-013",
+                    title="LUKS Encryption Detected",
+                    description="Disk encryption (LUKS) is configured",
+                    evidence="LUKS header found",
+                    impact="Data protected at rest",
+                    remediation="Ensure encryption is used for sensitive partitions",
+                    phase="Phase 8",
+                )
+            )
+    else:
+        stdout, _, _ = run_command("ls -la /dev/mapper/ 2>/dev/null")
+        if stdout and "crypt" in stdout.lower():
+            findings.append(
+                Finding(
+                    severity=Severity.INFO,
+                    check_id="CRYPTO-014",
+                    title="Encrypted Volumes Present",
+                    description="Encrypted volume mappings found",
+                    evidence=stdout,
+                    impact="Some volumes are encrypted",
+                    remediation="Ensure all sensitive data is encrypted",
+                    phase="Phase 8",
+                )
+            )
+
+    return findings
+
+
 def run_crypto_checks() -> list[Finding]:
     """Run all cryptographic posture checks."""
     findings = []
@@ -186,5 +330,9 @@ def run_crypto_checks() -> list[Finding]:
     findings.extend(check_entropy_available())
     findings.extend(check_gpg_keys())
     findings.extend(check_password_hashing())
+    findings.extend(check_ssh_key_exchange())
+    findings.extend(check_ssh_ciphers())
+    findings.extend(check_password_quality())
+    findings.extend(check_disk_encryption())
 
     return findings

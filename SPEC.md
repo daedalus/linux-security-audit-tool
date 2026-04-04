@@ -134,28 +134,50 @@ from security_audit.utils import Finding, Severity, AuditContext
 - System accounts with shells
 - Empty passwords
 - Sudo NOPASSWD rules
+- Sudo wildcard abuse (vi, nano, find, etc.)
 - SSH root login
 - Password authentication
 - Privileged groups (sudo, docker, lxd)
+- Password policy (max days, min days, warn age)
+- Password expiry status
+- Locked accounts with valid shells
+- SSH authorized keys
+- /etc/group modification detection
 
 ### Phase 2: Network Exposure
 - Listening services (ss/netstat)
 - Firewall status (iptables/nftables/ufw/firewalld)
-- sysctl network hardening
+- UFW firewall status and rules
+- Firewalld firewall status and rules
+- sysctl network hardening (IPv4)
+- sysctl network hardening (IPv6)
 - Unnecessary services
+- ICMP broadcast protection
+- Source packet routing
 
 ### Phase 3: File System & Permissions
 - SUID/SGID binaries
 - World-writable files/directories
+- World-writable directories without sticky bit
 - Unowned files
-- Critical file permissions (/etc/shadow, /etc/sudoers)
+- Critical file permissions (/etc/shadow, /etc/sudoers, /etc/gshadow)
 - Cron jobs
+- SSH private key permissions
+- Sensitive files in /tmp
+- Backup files detection (.bak, .old, .swp)
+- Sudoers file integrity
 
 ### Phase 4: Process & Service Posture
 - Running services
+- Enabled services at boot
 - Docker socket
 - AppArmor status
 - SELinux status
+- Unnecessary network services (telnet, rsh, finger, cups, etc.)
+- Systemd timers
+- Seccomp profile status
+- Service file permissions
+- SysV init scripts
 
 ### Phase 5: Kernel & OS Hardening
 - ASLR (address space layout randomization)
@@ -165,13 +187,23 @@ from security_audit.utils import Finding, Severity, AuditContext
 - suid_dumpable
 - protected_symlinks/hardlinks
 - Kernel module blacklist
+- SysRq key status
+- ICMP broadcast ignore
+- VM swappiness
+- User namespace restrictions
 
 ### Phase 6: Logging & Monitoring
 - auditd status
 - Audit rules
-- Log permissions
+- Audit rules for sensitive files (/etc/passwd, /etc/shadow)
+- Log permissions (auth.log, secure)
+- Log file ownership (should be root:adm)
 - Failed logins
+- Failed SSH attempts
 - logrotate configuration
+- syslog configuration (rsyslog/syslog-ng)
+- Journald persistence
+- Remote logging configuration
 
 ### Phase 7: Package & Update Hygiene
 - Pending security updates
@@ -181,12 +213,16 @@ from security_audit.utils import Finding, Severity, AuditContext
 - Deprecated packages
 
 ### Phase 8: Cryptographic Posture
-- SSH host key strength
+- SSH host key strength (RSA, DSA, ECDSA, Ed25519)
+- SSH key exchange algorithms
+- SSH ciphers and MACs
 - TLS configuration
 - SSL certificate expiry
 - Entropy availability
 - GPG keys
-- Password hashing
+- Password hashing algorithm
+- Password quality (PAM configuration)
+- Disk encryption status (LUKS)
 
 ### Phase 9: Reporting & Remediation
 - Finding classification

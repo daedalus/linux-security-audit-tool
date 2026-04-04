@@ -182,6 +182,114 @@ def check_unnecessary_network_services() -> list[Finding]:
     return findings
 
 
+def check_systemd_timers() -> list[Finding]:
+    """Check systemd timers."""
+    findings = []
+
+    stdout, _, rc = run_command("systemctl list-timers --all 2>/dev/null")
+    if rc == 0 and stdout and stdout.strip():
+        findings.append(
+            Finding(
+                severity=Severity.INFO,
+                check_id="PROC-009",
+                title="Systemd Timers Found",
+                description="Systemd timers are scheduled",
+                evidence=f"{len(stdout.split(chr(10)))} timer entries",
+                impact="Timers can execute commands automatically",
+                remediation="Review timers for legitimacy",
+                phase="Phase 4",
+            )
+        )
+
+    return findings
+
+
+def check_seccomp_status() -> list[Finding]:
+    """Check Seccomp profile status."""
+    findings = []
+
+    stdout, _, rc = run_command(
+        "systemd-analyze security 2>/dev/null | grep -i seccomp"
+    )
+    if rc == 0 and stdout:
+        if "0" in stdout or "disabled" in stdout.lower():
+            findings.append(
+                Finding(
+                    severity=Severity.MEDIUM,
+                    check_id="PROC-010",
+                    title="Seccomp Not Enforced",
+                    description="Seccomp filtering may not be enforced",
+                    evidence=stdout,
+                    impact="Limited syscall filtering protection",
+                    remediation="Enable Seccomp in systemd service files",
+                    phase="Phase 4",
+                )
+            )
+    else:
+        findings.append(
+            Finding(
+                severity=Severity.LOW,
+                check_id="PROC-011",
+                title="Seccomp Status Unclear",
+                description="Unable to determine Seccomp status",
+                evidence="systemd-analyze security returned no seccomp info",
+                impact="Limited syscall filtering visibility",
+                remediation="Check service files for Seccomp= settings",
+                phase="Phase 4",
+            )
+        )
+
+    return findings
+
+
+def check_service_file_permissions() -> list[Finding]:
+    """Check systemd service file permissions."""
+    findings = []
+
+    stdout, _, rc = run_command(
+        "find /etc/systemd/system -name '*.service' -type f -perm -002 2>/dev/null"
+    )
+    if rc == 0 and stdout and stdout.strip():
+        findings.append(
+            Finding(
+                severity=Severity.HIGH,
+                check_id="PROC-012",
+                title="Writable Service Files Found",
+                description="Service files with world-writable permissions",
+                evidence=stdout,
+                impact="Service files can be modified by any user",
+                remediation="Fix permissions: chmod 644 on service files",
+                phase="Phase 4",
+            )
+        )
+
+    return findings
+
+
+def check_sysv_init_scripts() -> list[Finding]:
+    """Check for SysV init scripts."""
+    findings = []
+
+    stdout, _, rc = run_command("ls /etc/init.d/ 2>/dev/null")
+    if rc == 0 and stdout and stdout.strip():
+        lines = stdout.strip().split("\n")
+        if len(lines) > 0:
+            findings.append(
+                Finding(
+                    severity=Severity.INFO,
+                    check_id="PROC-013",
+                    title="SysV Init Scripts Found",
+                    description=f"Found {len(lines)} SysV init scripts",
+                    evidence=stdout[:500] + "..." if len(stdout) > 500 else stdout,
+                    impact="Legacy init system may be in use",
+                    remediation="Consider migrating to systemd",
+                    phase="Phase 4",
+                )
+            )
+
+    return findings
+
+
 def run_process_checks() -> list[Finding]:
     """Run all process and service posture checks."""
     findings = []
@@ -192,5 +300,9 @@ def run_process_checks() -> list[Finding]:
     findings.extend(check_apparmor_status())
     findings.extend(check_selinux_status())
     findings.extend(check_unnecessary_network_services())
+    findings.extend(check_systemd_timers())
+    findings.extend(check_seccomp_status())
+    findings.extend(check_service_file_permissions())
+    findings.extend(check_sysv_init_scripts())
 
     return findings

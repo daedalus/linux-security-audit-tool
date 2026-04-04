@@ -137,6 +137,150 @@ def check_unnecessary_services() -> list[Finding]:
     return findings
 
 
+def check_ufw_firewall() -> list[Finding]:
+    """Check UFW firewall status and rules."""
+    findings = []
+
+    stdout, _, rc = run_command("sudo ufw status 2>/dev/null")
+    if rc == 0 and stdout:
+        if "Status: inactive" in stdout:
+            findings.append(
+                Finding(
+                    severity=Severity.HIGH,
+                    check_id="NET-006",
+                    title="UFW Firewall Inactive",
+                    description="UFW firewall is not active",
+                    evidence=stdout,
+                    impact="No firewall protection enabled",
+                    remediation="Enable UFW: sudo ufw enable",
+                    phase="Phase 2",
+                )
+            )
+        elif "Status: active" in stdout:
+            if "Default deny (incoming)" not in stdout:
+                findings.append(
+                    Finding(
+                        severity=Severity.MEDIUM,
+                        check_id="NET-007",
+                        title="UFW Default Policy Not Deny",
+                        description="UFW is active but default incoming policy is not deny",
+                        evidence=stdout,
+                        impact="May allow unsolicited incoming connections",
+                        remediation="Set default incoming policy: sudo ufw default deny incoming",
+                        phase="Phase 2",
+                    )
+                )
+
+    return findings
+
+
+def check_firewalld() -> list[Finding]:
+    """Check firewalld firewall status and rules."""
+    findings = []
+
+    stdout, _, rc = run_command("sudo firewall-cmd --state 2>/dev/null")
+    if rc == 0:
+        if "running" not in stdout.lower():
+            findings.append(
+                Finding(
+                    severity=Severity.HIGH,
+                    check_id="NET-008",
+                    title="Firewalld Not Running",
+                    description="Firewalld is not active",
+                    evidence=stdout,
+                    impact="No firewall protection enabled",
+                    remediation="Enable firewalld: sudo systemctl enable --now firewalld",
+                    phase="Phase 2",
+                )
+            )
+    elif rc != 0:
+        pass
+
+    return findings
+
+
+def check_ipv6_hardening() -> list[Finding]:
+    """Check IPv6 hardening parameters."""
+    findings = []
+
+    params = {
+        "net.ipv6.conf.all.accept_ra": "0",
+        "net.ipv6.conf.default.accept_ra": "0",
+        "net.ipv6.conf.all.accept_redirects": "0",
+        "net.ipv6.conf.default.accept_redirects": "0",
+        "net.ipv6.conf.all.accept_source_route": "0",
+        "net.ipv6.conf.default.accept_source_route": "0",
+    }
+
+    for param, expected in params.items():
+        stdout, _, rc = run_command(f"sysctl -n {param} 2>/dev/null")
+        if rc == 0:
+            actual = stdout.strip()
+            if actual != expected:
+                findings.append(
+                    Finding(
+                        severity=Severity.LOW,
+                        check_id="NET-009",
+                        title=f"Suboptimal IPv6 {param}",
+                        description=f"Current value: {actual}, expected: {expected}",
+                        evidence=f"{param} = {actual}",
+                        impact="IPv6 security hardening gap",
+                        remediation=f"Set {param} = {expected}",
+                        phase="Phase 2",
+                    )
+                )
+
+    return findings
+
+
+def check_icmp_broadcast() -> list[Finding]:
+    """Check ICMP broadcast protection."""
+    findings = []
+
+    stdout, _, rc = run_command("sysctl -n net.ipv4.icmp_ignore_broadcasts 2>/dev/null")
+    if rc == 0:
+        if stdout.strip() != "1":
+            findings.append(
+                Finding(
+                    severity=Severity.MEDIUM,
+                    check_id="NET-010",
+                    title="ICMP Broadcast Not Ignored",
+                    description=f"Current value: {stdout.strip()}, expected: 1",
+                    evidence=f"net.ipv4.icmp_ignore_broadcasts = {stdout.strip()}",
+                    impact="System vulnerable to broadcast ping attacks",
+                    remediation="Set net.ipv4.icmp_ignore_broadcasts = 1",
+                    phase="Phase 2",
+                )
+            )
+
+    return findings
+
+
+def check_source_routing() -> list[Finding]:
+    """Check source packet routing."""
+    findings = []
+
+    stdout, _, rc = run_command(
+        "sysctl -n net.ipv4.conf.all.accept_source_route 2>/dev/null"
+    )
+    if rc == 0:
+        if stdout.strip() != "0":
+            findings.append(
+                Finding(
+                    severity=Severity.MEDIUM,
+                    check_id="NET-011",
+                    title="Source Routing Enabled",
+                    description=f"Current value: {stdout.strip()}, expected: 0",
+                    evidence=f"net.ipv4.conf.all.accept_source_route = {stdout.strip()}",
+                    impact="Allowing source routing enables IP spoofing attacks",
+                    remediation="Set net.ipv4.conf.all.accept_source_route = 0",
+                    phase="Phase 2",
+                )
+            )
+
+    return findings
+
+
 def run_network_checks() -> list[Finding]:
     """Run all network exposure checks."""
     findings = []
@@ -145,5 +289,10 @@ def run_network_checks() -> list[Finding]:
     findings.extend(check_firewall_status())
     findings.extend(check_sysctl_network_hardening())
     findings.extend(check_unnecessary_services())
+    findings.extend(check_ufw_firewall())
+    findings.extend(check_firewalld())
+    findings.extend(check_ipv6_hardening())
+    findings.extend(check_icmp_broadcast())
+    findings.extend(check_source_routing())
 
     return findings

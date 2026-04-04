@@ -181,6 +181,141 @@ def check_journald_persistence() -> list[Finding]:
     return findings
 
 
+def check_audit_sensitive_files() -> list[Finding]:
+    """Check if audit rules monitor sensitive files."""
+    findings = []
+
+    sensitive_files = ["/etc/passwd", "/etc/shadow", "/etc/sudoers", "/etc/ssh"]
+
+    stdout, _, rc = run_command("auditctl -l 2>/dev/null")
+    if rc == 0 and stdout:
+        monitored = []
+        for sf in sensitive_files:
+            if sf in stdout:
+                monitored.append(sf)
+
+        if len(monitored) < 2:
+            findings.append(
+                Finding(
+                    severity=Severity.LOW,
+                    check_id="LOG-008",
+                    title="Limited Audit Rules for Sensitive Files",
+                    description="Few sensitive files are being monitored",
+                    evidence=f"Monitored: {monitored if monitored else 'None'}",
+                    impact="Limited visibility into access to sensitive files",
+                    remediation="Add audit rules for /etc/passwd, /etc/shadow, /etc/sudoers",
+                    phase="Phase 6",
+                )
+            )
+    else:
+        findings.append(
+            Finding(
+                severity=Severity.LOW,
+                check_id="LOG-009",
+                title="No Audit Rules Configured",
+                description="No audit rules found in the system",
+                evidence="auditctl -l returned no rules",
+                impact="No monitoring of file access",
+                remediation="Configure audit rules for critical files",
+                phase="Phase 6",
+            )
+        )
+
+    return findings
+
+
+def check_log_ownership() -> list[Finding]:
+    """Check log file ownership."""
+    findings = []
+
+    log_paths = ["/var/log/auth.log", "/var/log/secure", "/var/log/syslog"]
+    for log_path in log_paths:
+        stdout, _, rc = run_command(f"stat -c '%U:%G %n' {log_path} 2>/dev/null")
+        if rc == 0 and stdout:
+            if "root:adm" not in stdout and "root:root" not in stdout:
+                findings.append(
+                    Finding(
+                        severity=Severity.MEDIUM,
+                        check_id="LOG-010",
+                        title=f"Log File Ownership Issue: {log_path}",
+                        description="Log file not owned by root:adm",
+                        evidence=stdout,
+                        impact="Log management may be compromised",
+                        remediation=f"Set ownership: chown root:adm {log_path}",
+                        phase="Phase 6",
+                    )
+                )
+            break
+
+    return findings
+
+
+def check_failed_ssh_attempts() -> list[Finding]:
+    """Check for failed SSH login attempts."""
+    findings = []
+
+    log_paths = ["/var/log/auth.log", "/var/log/secure"]
+    for log_path in log_paths:
+        stdout, _, rc = run_command(
+            f"grep -i 'sshd.*failed\\|sshd.*invalid\\|sshd.*disconnect' {log_path} 2>/dev/null | tail -20"
+        )
+        if rc == 0 and stdout and stdout.strip():
+            count = len(stdout.strip().split("\n"))
+            if count > 10:
+                findings.append(
+                    Finding(
+                        severity=Severity.MEDIUM,
+                        check_id="LOG-011",
+                        title="Multiple Failed SSH Attempts",
+                        description=f"Found {count} failed SSH login attempts",
+                        evidence=f"Recent failures: {count}",
+                        impact="May indicate brute force attack",
+                        remediation="Review SSH logs and consider fail2ban",
+                        phase="Phase 6",
+                    )
+                )
+            break
+
+    return findings
+
+
+def check_remote_logging() -> list[Finding]:
+    """Check remote logging configuration."""
+    findings = []
+
+    stdout, _, rc = run_command(
+        "grep -E '^\\*\\.\\*|^auth\\*\\.|^*\\.\\*' /etc/rsyslog.conf /etc/rsyslog.d/*.conf 2>/dev/null | grep -v '^#' | grep '@'"
+    )
+    if rc == 0 and stdout and stdout.strip():
+        findings.append(
+            Finding(
+                severity=Severity.INFO,
+                check_id="LOG-012",
+                title="Remote Logging Configured",
+                description="System is configured to send logs remotely",
+                evidence=stdout[:200],
+                impact="Logs sent to remote server",
+                remediation="Ensure remote log server is secure",
+                phase="Phase 6",
+            )
+        )
+    else:
+        findings.append(
+            Finding(
+                severity=Severity.LOW,
+                check_id="LOG-013",
+                title="Remote Logging Not Configured",
+                description="System is not sending logs to remote server",
+                evidence="No remote syslog destination found",
+                impact="Logs may be lost if system is compromised",
+                remediation="Consider configuring remote logging",
+                phase="Phase 6",
+            )
+        )
+
+    return findings
+
+
 def run_logging_checks() -> list[Finding]:
     """Run all logging and monitoring checks."""
     findings = []
@@ -192,5 +327,9 @@ def run_logging_checks() -> list[Finding]:
     findings.extend(check_logrotate_config())
     findings.extend(check_syslog_config())
     findings.extend(check_journald_persistence())
+    findings.extend(check_audit_sensitive_files())
+    findings.extend(check_log_ownership())
+    findings.extend(check_failed_ssh_attempts())
+    findings.extend(check_remote_logging())
 
     return findings
