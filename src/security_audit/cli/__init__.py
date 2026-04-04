@@ -41,9 +41,8 @@ def print_finding(finding: Finding, verbose: bool = False) -> None:
         Severity.INFO: "blue",
     }
     color = colors.get(finding.severity, "white")
-    rprint(
-        f"[{color}]{finding.severity.value}[/{color}] [{color}]{finding.check_id}[/{color}]: {finding.title}"
-    )
+    rprint(f"[{color}]{finding.severity.value}[/{color}]")
+    rprint(f"[{color}]{finding.check_id}[/{color}]: {finding.title}")
     if verbose:
         if finding.description:
             rprint(f"  {finding.description}")
@@ -150,6 +149,7 @@ def audit(
             findings = run_identity_checks()
             all_findings.extend(findings)
             if not quiet:
+                console.print()
                 for f in findings:
                     print_finding(f, verbose=verbose)
             progress.update(task, completed=True)
@@ -159,6 +159,7 @@ def audit(
             findings = run_network_checks()
             all_findings.extend(findings)
             if not quiet:
+                console.print()
                 for f in findings:
                     print_finding(f, verbose=verbose)
             progress.update(task, completed=True)
@@ -170,6 +171,7 @@ def audit(
             findings = run_filesystem_checks()
             all_findings.extend(findings)
             if not quiet:
+                console.print()
                 for f in findings:
                     print_finding(f, verbose=verbose)
             progress.update(task, completed=True)
@@ -181,6 +183,7 @@ def audit(
             findings = run_process_checks()
             all_findings.extend(findings)
             if not quiet:
+                console.print()
                 for f in findings:
                     print_finding(f, verbose=verbose)
             progress.update(task, completed=True)
@@ -190,6 +193,7 @@ def audit(
             findings = run_kernel_checks()
             all_findings.extend(findings)
             if not quiet:
+                console.print()
                 for f in findings:
                     print_finding(f, verbose=verbose)
             progress.update(task, completed=True)
@@ -199,6 +203,7 @@ def audit(
             findings = run_logging_checks()
             all_findings.extend(findings)
             if not quiet:
+                console.print()
                 for f in findings:
                     print_finding(f, verbose=verbose)
             progress.update(task, completed=True)
@@ -208,6 +213,7 @@ def audit(
             findings = run_package_checks()
             all_findings.extend(findings)
             if not quiet:
+                console.print()
                 for f in findings:
                     print_finding(f, verbose=verbose)
             progress.update(task, completed=True)
@@ -217,6 +223,7 @@ def audit(
             findings = run_crypto_checks()
             all_findings.extend(findings)
             if not quiet:
+                console.print()
                 for f in findings:
                     print_finding(f, verbose=verbose)
             progress.update(task, completed=True)
