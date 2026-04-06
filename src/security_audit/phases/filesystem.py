@@ -87,13 +87,14 @@ def check_world_writable_files() -> list[Finding]:
         "find / -xdev -type f -perm -0002 -not -path '/proc/*' -not -path '/sys/*' 2>/dev/null | head -20"
     )
     if rc == 0 and stdout and stdout.strip():
+        count = len(stdout.strip().split("\n"))
         findings.append(
             Finding(
                 severity=Severity.HIGH,
                 check_id="FS-003",
-                title="World-Writable Files Found",
-                description="Files with world-writable permissions",
-                evidence=stdout,
+                title=f"World-Writable Files Found ({count} files)",
+                description=f"Files with world-writable permissions: {count} files found",
+                evidence=stdout[:1000],
                 impact="Any user can modify these files",
                 remediation="Remove world-writable: chmod o-w <file>",
                 phase="Phase 3",
@@ -135,13 +136,14 @@ def check_unowned_files() -> list[Finding]:
         "find / -xdev \\( -nouser -o -nogroup \\) 2>/dev/null | head -20"
     )
     if rc == 0 and stdout and stdout.strip():
+        count = len(stdout.strip().split("\n"))
         findings.append(
             Finding(
                 severity=Severity.MEDIUM,
                 check_id="FS-005",
-                title="Unowned Files Found",
-                description="Files without valid owner/group",
-                evidence=stdout,
+                title=f"Unowned Files Found ({count} files)",
+                description=f"Files without valid owner/group: {count} files found",
+                evidence=stdout[:1000],
                 impact="Files may be owned by deleted users or be compromised",
                 remediation="Set ownership: chown <user>:<group> <file>",
                 phase="Phase 3",
@@ -167,20 +169,30 @@ def check_critical_file_permissions() -> list[Finding]:
             parts = stdout.split()
             if len(parts) >= 4:
                 actual_perms = parts[0]
-
-                if actual_perms != f"-{perms}" and actual_perms != "-rw------":
-                    findings.append(
-                        Finding(
-                            severity=Severity.HIGH,
-                            check_id="FS-006",
-                            title=f"Weak {filepath} Permissions",
-                            description=f"Current permissions: {actual_perms}",
-                            evidence=stdout,
-                            impact="Sensitive data may be readable by non-root users",
-                            remediation=f"Set permissions: chmod {perms} {filepath}",
-                            phase="Phase 3",
-                        )
+                expected_perm = f"-{perms}"
+                if actual_perms == expected_perm:
+                    continue
+                if filepath == "/etc/sudoers" and actual_perms in [
+                    "-r--r-----",
+                    "-rw-r-----",
+                ]:
+                    continue
+                if filepath in ["/etc/shadow", "/etc/gshadow"] and actual_perms in [
+                    "-rw-------"
+                ]:
+                    continue
+                findings.append(
+                    Finding(
+                        severity=Severity.HIGH,
+                        check_id="FS-006",
+                        title=f"Weak {filepath} Permissions",
+                        description=f"Current permissions: {actual_perms}",
+                        evidence=stdout,
+                        impact="Sensitive data may be readable by non-root users",
+                        remediation=f"Set permissions: chmod {perms} {filepath}",
+                        phase="Phase 3",
                     )
+                )
 
     return findings
 
@@ -292,13 +304,14 @@ def check_backup_files() -> list[Finding]:
         "find /etc -xdev -type f \\( -name '*.bak' -o -name '*.old' -o -name '*.swp' -o -name '*~' \\) 2>/dev/null | head -20"
     )
     if rc == 0 and stdout and stdout.strip():
+        count = len(stdout.strip().split("\n"))
         findings.append(
             Finding(
                 severity=Severity.LOW,
                 check_id="FS-011",
-                title="Backup Files Found in /etc",
-                description="Backup files found in /etc directory",
-                evidence=stdout,
+                title=f"Backup Files Found in /etc ({count} files)",
+                description=f"Backup files found in /etc directory: {count} files",
+                evidence=stdout[:1000],
                 impact="Backup files may contain sensitive information",
                 remediation="Remove backup files from /etc",
                 phase="Phase 3",

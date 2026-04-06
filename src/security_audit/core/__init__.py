@@ -1,8 +1,23 @@
 """Security audit core models and utilities."""
 
+import logging
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Optional
+
+logger = logging.getLogger("security_audit")
+DEBUG = False
+
+
+def set_debug(enabled: bool) -> None:
+    """Enable or disable debug mode."""
+    global DEBUG
+    DEBUG = enabled
+    if enabled:
+        logger.setLevel(logging.DEBUG)
+        handler = logging.StreamHandler()
+        handler.setFormatter(logging.Formatter("[DEBUG] %(message)s"))
+        logger.addHandler(handler)
 
 
 class Severity(Enum):
@@ -80,6 +95,7 @@ def run_command(
     """
     import subprocess
 
+    logger.debug(f"Executing: {cmd}")
     try:
         result = subprocess.run(
             cmd,

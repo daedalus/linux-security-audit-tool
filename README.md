@@ -17,9 +17,14 @@ pip install linux-security-audit-tool
 ```bash
 security-audit --help
 security-audit audit
-security-audit audit -p 0 -1         # Run specific phases
-security-audit audit -o report.md     # Save markdown report
-security-audit audit --quiet          # Summary only
+security-audit audit -p 0 -1           # Run specific phases
+security-audit audit -o report.md      # Save markdown report
+security-audit audit --quiet           # Summary only
+security-audit audit --debug           # Show executed commands
+security-audit audit --remediate-all   # Generate remediation script for all findings
+security-audit audit --remediate-only-critical  # Generate remediation script for CRITICAL only
+security-audit audit --remediate-non-critical   # Generate remediation script for non-CRITICAL
+security-audit audit --pdf report.pdf  # Generate PDF report
 ```
 
 ## CLI
@@ -35,6 +40,18 @@ Commands:
   audit    Run a full security audit.
   version  Show version information.
 ```
+
+## Audit Command Options
+
+- `--output`, `-o FILE`            - Output file for markdown report
+- `--phases`, `-p [0-9]`          - Specific phases to run (can be repeated)
+- `--quiet`, `-q`                 - Suppress detailed output
+- `--verbose`, `-v`               - Show descriptions and remediation
+- `--debug`, `-d`                 - Show low-level commands being executed
+- `--remediate-all`, `-r`         - Generate remediation script for all findings
+- `--remediate-only-critical`     - Generate remediation script for CRITICAL findings only
+- `--remediate-non-critical`      - Generate remediation script for non-CRITICAL findings
+- `--pdf FILE`                    - Generate PDF executive report
 
 ## Development
 

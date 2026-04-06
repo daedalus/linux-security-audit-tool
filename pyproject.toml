@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 license = {text = "MIT"}
 authors = [{name = "Dario Clavijo", email = "clavijodario@gmail.com"}]
-dependencies = ["jinja2>=3.0.0", "tabulate>=0.9.0"]
+dependencies = ["jinja2>=3.0.0", "tabulate>=0.9.0", "weasyprint>=60.0"]
 
 [project.optional-dependencies]
 cli = ["click>=8.0", "rich>=13.0"]
@@ -65,15 +65,15 @@ warn_unused_ignores = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-v --tb=short --cov=src"
+addopts = "-v --tb=short --cov=security_audit"
 filterwarnings = ["ignore::DeprecationWarning"]
 
 [tool.coverage.run]
-source = ["src"]
+source = ["security_audit"]
 branch = true
+omit = ["tests/*"]
 
 [tool.coverage.report]
-exclude = ["tests/*", "*/__init__.py"]
 exclude_lines = [
     "pragma: no cover",
     "def __repr__",

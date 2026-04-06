@@ -15,6 +15,7 @@ from .reporting import (
     calculate_security_score,
     classify_severity,
     generate_markdown_report,
+    generate_pdf_report,
     generate_remediation_script,
     run_reporting,
 )
@@ -35,6 +36,7 @@ __all__ = [
     "run_crypto_checks",
     "run_reporting",
     "generate_markdown_report",
+    "generate_pdf_report",
     "generate_remediation_script",
     "calculate_security_score",
     "classify_severity",

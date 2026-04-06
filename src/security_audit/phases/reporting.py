@@ -5,6 +5,101 @@ from datetime import datetime
 from ..core import AuditContext, Finding, Severity
 
 
+def generate_pdf_report(
+    context: AuditContext, findings: list[Finding], output_path: str
+) -> None:
+    """Generate a PDF executive report."""
+    try:
+        from weasyprint import HTML
+    except ImportError:
+        raise ImportError(
+            "weasyprint is required for PDF generation. Install with: pip install weasyprint"
+        )
+
+    classified = classify_severity(findings)
+    score = calculate_security_score(findings)
+
+    severity_colors = {
+        "CRITICAL": "#dc2626",
+        "HIGH": "#ea580c",
+        "MEDIUM": "#ca8a04",
+        "LOW": "#0891b2",
+        "INFO": "#4b5563",
+    }
+
+    findings_html = ""
+    for severity_name, severity_list in [
+        ("critical", classified["critical"]),
+        ("high", classified["high"]),
+        ("medium", classified["medium"]),
+        ("low", classified["low"]),
+        ("info", classified["info"]),
+    ]:
+        if severity_list:
+            findings_html += f'<h2 style="color:{severity_colors.get(severity_name.upper(), "#000")}">{severity_name.upper()} Findings</h2>'
+            for f in severity_list:
+                findings_html += f"""
+                <div class="finding">
+                    <h3>{f.check_id}: {f.title}</h3>
+                    <p><strong>Severity:</strong> <span class="severity {f.severity.value.lower()}">{f.severity.value}</span></p>
+                    <p><strong>Description:</strong> {f.description}</p>
+                    <p><strong>Remediation:</strong> {f.remediation}</p>
+                </div>
+                """
+
+    html_content = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <title>Security Audit Report - {context.hostname}</title>
+        <style>
+            body {{ font-family: Arial, sans-serif; margin: 40px; color: #1f2937; }}
+            h1 {{ color: #1e40af; border-bottom: 2px solid #1e40af; padding-bottom: 10px; }}
+            h2 {{ color: #374151; margin-top: 30px; }}
+            .summary {{ background: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0; }}
+            .score {{ font-size: 48px; font-weight: bold; color: #1e40af; }}
+            .meta {{ color: #6b7280; font-size: 14px; }}
+            .finding {{ background: #fff; border-left: 4px solid #374151; padding: 15px; margin: 15px 0; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }}
+            .severity.critical {{ color: #dc2626; font-weight: bold; }}
+            .severity.high {{ color: #ea580c; font-weight: bold; }}
+            .severity.medium {{ color: #ca8a04; font-weight: bold; }}
+            .severity.low {{ color: #0891b2; font-weight: bold; }}
+            .severity.info {{ color: #4b5563; }}
+            table {{ width: 100%; border-collapse: collapse; margin: 20px 0; }}
+            th, td {{ padding: 12px; text-align: left; border-bottom: 1px solid #e5e7eb; }}
+            th {{ background: #f9fafb; font-weight: 600; }}
+        </style>
+    </head>
+    <body>
+        <h1>Linux Security Audit Report</h1>
+        <div class="meta">
+            <p><strong>Hostname:</strong> {context.hostname or "Unknown"}</p>
+            <p><strong>Date:</strong> {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</p>
+            <p><strong>Kernel:</strong> {context.kernel or "Unknown"}</p>
+        </div>
+
+        <div class="summary">
+            <h2>Executive Summary</h2>
+            <div class="score">{score}/100</div>
+            <table>
+                <tr><th>Severity</th><th>Count</th></tr>
+                <tr><td style="color:#dc2626">Critical</td><td>{len(classified["critical"])}</td></tr>
+                <tr><td style="color:#ea580c">High</td><td>{len(classified["high"])}</td></tr>
+                <tr><td style="color:#ca8a04">Medium</td><td>{len(classified["medium"])}</td></tr>
+                <tr><td style="color:#0891b2">Low</td><td>{len(classified["low"])}</td></tr>
+                <tr><td style="color:#4b5563">Info</td><td>{len(classified["info"])}</td></tr>
+            </table>
+        </div>
+
+        {findings_html}
+    </body>
+    </html>
+    """
+
+    HTML(string=html_content).write_pdf(output_path)
+
+
 def classify_severity(findings: list[Finding]) -> dict[str, list[Finding]]:
     """Classify findings by severity."""
     classified = {"critical": [], "high": [], "medium": [], "low": [], "info": []}

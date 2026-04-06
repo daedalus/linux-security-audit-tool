@@ -60,7 +60,7 @@ def check_passwordless_accounts() -> list[Finding]:
     findings = []
 
     stdout, _, rc = run_command(
-        'sudo awk -F: \'$2 == "" {print "NO PASSWORD:", $1}\' /etc/shadow'
+        'awk -F: \'$2 == "" {print "NO PASSWORD:", $1}\' /etc/shadow'
     )
     if rc == 0 and stdout:
         findings.append(

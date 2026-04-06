@@ -60,7 +60,7 @@ def check_auth_log_permissions() -> list[Finding]:
             parts = stdout.split()
             if len(parts) >= 1:
                 perms = parts[0]
-                if "w" in perms[1:]:
+                if len(perms) >= 10 and perms[9] == "w":
                     findings.append(
                         Finding(
                             severity=Severity.HIGH,

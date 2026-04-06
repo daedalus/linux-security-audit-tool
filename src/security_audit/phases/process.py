@@ -11,13 +11,22 @@ def check_running_services() -> list[Finding]:
         "systemctl list-units --type=service --state=running 2>/dev/null"
     )
     if rc == 0 and stdout:
+        lines = [
+            l.strip()
+            for l in stdout.strip().split("\n")
+            if l.strip() and not l.startswith("UNITLoaded")
+        ]
+        count = len(lines)
+        service_list = "\n".join(lines[:20])
+        if count > 20:
+            service_list += f"\n... and {count - 20} more"
         findings.append(
             Finding(
                 severity=Severity.INFO,
                 check_id="PROC-001",
-                title="Running Services",
-                description="List of running services",
-                evidence=f"{len(stdout.split(chr(10)))} services running",
+                title=f"Running Services ({count} services)",
+                description=f"List of running services: {count} services",
+                evidence=service_list,
                 impact="Each running service increases attack surface",
                 remediation="Disable unnecessary services",
                 phase="Phase 4",
@@ -35,13 +44,22 @@ def check_enabled_services() -> list[Finding]:
         "systemctl list-unit-files --type=service --state=enabled 2>/dev/null"
     )
     if rc == 0 and stdout:
+        lines = [
+            l.strip()
+            for l in stdout.strip().split("\n")
+            if l.strip() and not l.startswith("UNIT")
+        ]
+        count = len(lines)
+        service_list = "\n".join(lines[:20])
+        if count > 20:
+            service_list += f"\n... and {count - 20} more"
         findings.append(
             Finding(
                 severity=Severity.INFO,
                 check_id="PROC-002",
-                title="Enabled Services",
-                description="List of services enabled at boot",
-                evidence=f"{len(stdout.split(chr(10)))} services enabled",
+                title=f"Enabled Services ({count} services)",
+                description=f"List of services enabled at boot: {count} services",
+                evidence=service_list,
                 impact="Services will restart after reboot",
                 remediation="Disable services not needed at boot",
                 phase="Phase 4",
@@ -290,6 +308,45 @@ def check_sysv_init_scripts() -> list[Finding]:
     return findings
 
 
+def check_rkhunter_installation() -> list[Finding]:
+    """Check if rkhunter is installed and configured."""
+    findings = []
+
+    stdout, _, rc = run_command("which rkhunter 2>/dev/null")
+    if rc != 0:
+        findings.append(
+            Finding(
+                severity=Severity.MEDIUM,
+                check_id="PROC-014",
+                title="rkhunter Not Installed",
+                description="Rootkit Hunter is not installed on the system",
+                evidence="rkhunter not found in PATH",
+                impact="No automated rootkit detection in place",
+                remediation="Install rkhunter: apt install rkhunter",
+                phase="Phase 4",
+            )
+        )
+    else:
+        stdout, _, rc = run_command(
+            "rkhunter --check --skip-keypress 2>/dev/null | tail -20"
+        )
+        if rc != 0:
+            findings.append(
+                Finding(
+                    severity=Severity.MEDIUM,
+                    check_id="PROC-015",
+                    title="rkhunter Check Failed",
+                    description="rkhunter check completed with errors",
+                    evidence=stdout[:500] if stdout else "No output",
+                    impact="Possible rootkit detected or misconfiguration",
+                    remediation="Run rkhunter --check manually and review output",
+                    phase="Phase 4",
+                )
+            )
+
+    return findings
+
+
 def run_process_checks() -> list[Finding]:
     """Run all process and service posture checks."""
     findings = []
@@ -304,5 +361,6 @@ def run_process_checks() -> list[Finding]:
     findings.extend(check_seccomp_status())
     findings.extend(check_service_file_permissions())
     findings.extend(check_sysv_init_scripts())
+    findings.extend(check_rkhunter_installation())
 
     return findings

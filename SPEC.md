@@ -11,13 +11,17 @@ A comprehensive CLI tool for auditing Linux system security posture. It performs
 - 9-phase security audit (Phase 0-9)
 - Finding classification and severity scoring
 - Markdown report generation
+- PDF executive report generation
+- Remediation script generation
 - Phase selection (run specific phases)
 - Quiet mode for summary-only output
+- Verbose mode for detailed output
+- Debug mode for low-level command output
+- Auto-remediation support (generation of remediation scripts)
 
 ### What is NOT in scope
 - GUI interface
 - Web API
-- Auto-remediation (manual remediation only)
 - Real-time monitoring
 - Cloud security scanning (AWS/GCP/Azure)
 - Network vulnerability scanning of external hosts
@@ -33,9 +37,16 @@ security-audit [OPTIONS] COMMAND [ARGS]
 #### audit command
 ```bash
 security-audit audit [OPTIONS]
-  --output, -o PATH    Output file for markdown report
-  --phases, -p TEXT    Specific phases to run (0-9), can repeat
-  --quiet, -q          Suppress detailed output
+  --output, -o PATH          Output file for markdown report
+  --json, -j PATH            Output file for JSON report
+  --phases, -p TEXT         Specific phases to run (0-9), can repeat
+  --quiet, -q               Suppress detailed output
+  --verbose, -v             Show detailed output including descriptions and remediation
+  --debug, -d               Show debug output with low-level commands being executed
+  --remediate-all, -r       Apply automatic remediations for all findings
+  --remediate-only-critical Apply automatic remediations for CRITICAL findings only
+  --remediate-non-critical  Apply automatic remediations for non-CRITICAL findings
+  --pdf, -pdf PATH          Generate PDF executive report
 ```
 
 #### version command
@@ -60,9 +71,13 @@ from security_audit.phases import (
     run_crypto_checks,
     run_reporting,
     generate_markdown_report,
+    generate_pdf_report,
+    generate_json_report,
+    generate_remediation_script,
     calculate_security_score,
+    classify_severity,
 )
-from security_audit.utils import Finding, Severity, AuditContext
+from security_audit.core import Finding, Severity, AuditContext
 ```
 
 ### Data Structures
@@ -104,6 +119,8 @@ from security_audit.utils import Finding, Severity, AuditContext
 ### Output
 - Console output (Rich formatted)
 - Markdown report (UTF-8)
+- PDF report (via weasyprint)
+- JSON report (optional)
 
 ## Edge Cases
 
@@ -120,7 +137,7 @@ from security_audit.utils import Finding, Severity, AuditContext
 - O(n) for file searches - limited to find with early termination
 - Command timeout: 30 seconds max
 - Memory: Minimal - streaming output, no large data structures
-- Dependencies: click, rich, jinja2, tabulate only
+- Dependencies: click, rich, jinja2, tabulate, weasyprint only
 
 ## Audit Phases
 
@@ -228,4 +245,7 @@ from security_audit.utils import Finding, Severity, AuditContext
 - Finding classification
 - Security score calculation
 - Markdown report generation
+- PDF executive report generation
+- JSON report generation
+- Remediation script generation
 - Remediation checklist

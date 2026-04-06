@@ -1,5 +1,7 @@
 """Phase 2 - Network Exposure module."""
 
+import re
+
 from ..core import Finding, Severity, run_command
 
 
@@ -12,12 +14,21 @@ def check_listening_services() -> list[Finding]:
         lines = stdout.strip().split("\n")
         for line in lines[1:]:
             if "0.0.0.0:" in line or "*:" in line:
+                port_match = re.search(r":(\d+)\s", line)
+                port = port_match.group(1) if port_match else "unknown"
+                proto = (
+                    "TCP"
+                    if "tcp" in line.lower()
+                    else "UDP"
+                    if "udp" in line.lower()
+                    else "TCP"
+                )
                 findings.append(
                     Finding(
                         severity=Severity.MEDIUM,
                         check_id="NET-001",
-                        title="Exposed Network Service",
-                        description="Service listening on all interfaces",
+                        title=f"Exposed Network Service (port {port})",
+                        description=f"Service listening on all interfaces on port {port}/{proto}",
                         evidence=line,
                         impact="Service is accessible from network",
                         remediation="Bind to 127.0.0.1 or configure firewall",
@@ -32,9 +43,9 @@ def check_firewall_status() -> list[Finding]:
     """Check firewall status and rules."""
     findings = []
 
-    stdout, _, rc = run_command("sudo iptables -L -n 2>/dev/null")
+    stdout, _, rc = run_command("iptables -L -n 2>/dev/null")
     if rc != 0:
-        stdout, _, rc = run_command("sudo nft list ruleset 2>/dev/null")
+        stdout, _, rc = run_command("nft list ruleset 2>/dev/null")
 
     if rc == 0 and stdout:
         if "Chain INPUT (policy ACCEPT)" in stdout:
@@ -141,7 +152,7 @@ def check_ufw_firewall() -> list[Finding]:
     """Check UFW firewall status and rules."""
     findings = []
 
-    stdout, _, rc = run_command("sudo ufw status 2>/dev/null")
+    stdout, _, rc = run_command("ufw status 2>/dev/null")
     if rc == 0 and stdout:
         if "Status: inactive" in stdout:
             findings.append(
@@ -178,7 +189,7 @@ def check_firewalld() -> list[Finding]:
     """Check firewalld firewall status and rules."""
     findings = []
 
-    stdout, _, rc = run_command("sudo firewall-cmd --state 2>/dev/null")
+    stdout, _, rc = run_command("firewall-cmd --state 2>/dev/null")
     if rc == 0:
         if "running" not in stdout.lower():
             findings.append(
@@ -281,6 +292,88 @@ def check_source_routing() -> list[Finding]:
     return findings
 
 
+def check_open_proxy() -> list[Finding]:
+    """Check for open proxy services."""
+    findings = []
+
+    proxy_services = ["squid", "tinyproxy", "polipo", "varnish", "nginx"]
+
+    stdout, _, rc = run_command("ss -tlnp 2>/dev/null")
+    if rc == 0 and stdout:
+        for service in proxy_services:
+            if service in stdout.lower():
+                findings.append(
+                    Finding(
+                        severity=Severity.HIGH,
+                        check_id="NET-012",
+                        title=f"Proxy Service Detected: {service}",
+                        description=f"Proxy service {service} is listening",
+                        evidence=f"ss output contains {service}",
+                        impact="Open proxy can be used for malicious traffic",
+                        remediation=f"Configure {service} to require authentication or restrict access",
+                        phase="Phase 2",
+                    )
+                )
+
+    return findings
+
+
+def check_open_relay() -> list[Finding]:
+    """Check for open SMTP relay."""
+    findings = []
+
+    mail_services = ["postfix", "sendmail", "exim", "dovecot"]
+
+    stdout, _, rc = run_command("ss -tlnp 2>/dev/null")
+    if rc == 0 and stdout:
+        listening_on_25 = False
+        if ":25 " in stdout or ":25/" in stdout:
+            listening_on_25 = True
+            for service in mail_services:
+                if service in stdout.lower():
+                    findings.append(
+                        Finding(
+                            severity=Severity.HIGH,
+                            check_id="NET-013",
+                            title=f"Mail Service Detected: {service}",
+                            description=f"Mail service {service} is listening on port 25",
+                            evidence=f"ss output shows {service} on port 25",
+                            impact="May be configured as open relay for spam",
+                            remediation=f"Configure {service} to reject unauthorized relay",
+                            phase="Phase 2",
+                        )
+                    )
+                    break
+
+    return findings
+
+
+def check_unwanted_network_services() -> list[Finding]:
+    """Check for unwanted network services (FTP, Telnet, etc.)."""
+    findings = []
+
+    unwanted = ["vsftpd", "proftpd", "ftpd", "telnet", "rsh", "finger"]
+
+    stdout, _, rc = run_command("ss -tlnp 2>/dev/null")
+    if rc == 0 and stdout:
+        for service in unwanted:
+            if service in stdout.lower():
+                findings.append(
+                    Finding(
+                        severity=Severity.MEDIUM,
+                        check_id="NET-014",
+                        title=f"Unwanted Service: {service}",
+                        description=f"Insecure service {service} is running",
+                        evidence=f"ss output contains {service}",
+                        impact="Service may have known vulnerabilities",
+                        remediation=f"Disable {service}: systemctl stop {service} && systemctl disable {service}",
+                        phase="Phase 2",
+                    )
+                )
+
+    return findings
+
+
 def run_network_checks() -> list[Finding]:
     """Run all network exposure checks."""
     findings = []
@@ -294,5 +387,8 @@ def run_network_checks() -> list[Finding]:
     findings.extend(check_ipv6_hardening())
     findings.extend(check_icmp_broadcast())
     findings.extend(check_source_routing())
+    findings.extend(check_open_proxy())
+    findings.extend(check_open_relay())
+    findings.extend(check_unwanted_network_services())
 
     return findings
