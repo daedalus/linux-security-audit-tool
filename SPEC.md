@@ -137,7 +137,7 @@ from security_audit.core import Finding, Severity, AuditContext
 - O(n) for file searches - limited to find with early termination
 - Command timeout: 30 seconds max
 - Memory: Minimal - streaming output, no large data structures
-- Dependencies: click, rich, jinja2, tabulate, weasyprint only
+- Dependencies: click, rich, weasyprint only
 
 ## Audit Phases
 
