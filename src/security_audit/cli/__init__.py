@@ -197,7 +197,7 @@ def audit(
                 console.print(f"  Kernel: {context.kernel}")
                 stdout, _, _ = run_command("cat /etc/issue")
                 if stdout:
-                    console.print(f"  OS: {stdout.split('\\n')[0]}")
+                    console.print(f"  OS: {stdout.split(chr(10))[0]}")
             progress.update(task, completed=True)
 
         if 1 in selected_phases:
