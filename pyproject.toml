@@ -26,7 +26,7 @@ test = [
     "hypothesis",
 ]
 lint = ["ruff", "mypy"]
-all = ["linux-security-audit-tool[cli,dev,test,lint]"]
+all = ["linux-security-audit-tool[dev,test,lint]"]
 
 [project.scripts]
 security-audit = "security_audit.cli:main"
