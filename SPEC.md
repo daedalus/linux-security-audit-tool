@@ -164,6 +164,9 @@ from security_audit.core import Finding, Severity, AuditContext
 - Locked accounts with valid shells
 - SSH authorized keys
 - /etc/group modification detection
+- PAM account lockout policy (pam_faillock / pam_tally2)
+- Idle session timeout (TMOUT)
+- Default umask (should be 027 or more restrictive)
 
 ### Phase 2: Network Exposure
 - Listening services (ss/netstat)
@@ -175,6 +178,7 @@ from security_audit.core import Finding, Severity, AuditContext
 - Unnecessary services
 - ICMP broadcast protection
 - Source packet routing
+- NTP time synchronization (systemd-timesyncd / chronyd / ntpd)
 
 ### Phase 3: File System & Permissions
 - SUID/SGID binaries
@@ -187,6 +191,7 @@ from security_audit.core import Finding, Severity, AuditContext
 - Sensitive files in /tmp
 - Backup files detection (.bak, .old, .swp)
 - Sudoers file integrity
+- Security mount options (/tmp, /var/tmp, /dev/shm, /home)
 
 ### Phase 4: Process & Service Posture
 - Running services

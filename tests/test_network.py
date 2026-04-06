@@ -15,6 +15,7 @@ from security_audit.phases.network import (
     check_open_proxy,
     check_open_relay,
     check_unwanted_network_services,
+    check_ntp_sync,
     run_network_checks,
 )
 from security_audit.core import Severity, Finding
@@ -210,3 +211,34 @@ class TestCheckSourceRouting:
         findings = check_source_routing()
         assert len(findings) == 1
         assert findings[0].check_id == "NET-011"
+
+
+class TestCheckNtpSync:
+    """Tests for check_ntp_sync."""
+
+    @patch("security_audit.phases.network.run_command")
+    def test_systemd_timesyncd_active(self, mock_run):
+        """Test when systemd-timesyncd is active."""
+        mock_run.return_value = ("active", "", 0)
+        findings = check_ntp_sync()
+        assert len(findings) == 0
+
+    @patch("security_audit.phases.network.run_command")
+    def test_chronyd_active(self, mock_run):
+        """Test when chronyd is active (first service inactive, second active)."""
+        mock_run.side_effect = [
+            ("inactive", "", 1),
+            ("active", "", 0),
+        ]
+        findings = check_ntp_sync()
+        assert len(findings) == 0
+
+    @patch("security_audit.phases.network.run_command")
+    def test_no_ntp_service(self, mock_run):
+        """Test when no NTP service is active."""
+        mock_run.return_value = ("inactive", "", 1)
+        findings = check_ntp_sync()
+        assert len(findings) == 1
+        assert findings[0].check_id == "NET-015"
+        assert findings[0].severity == Severity.MEDIUM
+

@@ -369,6 +369,52 @@ def check_sudoers_integrity() -> list[Finding]:
     return findings
 
 
+@cached_check("check_mount_options")
+def check_mount_options() -> list[Finding]:
+    """Check security mount options for sensitive filesystems."""
+    findings = []
+
+    stdout, _, rc = run_command("mount 2>/dev/null")
+    if rc != 0 or not stdout:
+        return findings
+
+    # Map of mountpoint -> required security options
+    required: dict[str, list[str]] = {
+        "/tmp": ["noexec", "nosuid", "nodev"],
+        "/var/tmp": ["noexec", "nosuid", "nodev"],
+        "/dev/shm": ["noexec", "nosuid", "nodev"],
+        "/home": ["nodev"],
+    }
+
+    for mountpoint, opts in required.items():
+        for line in stdout.strip().split("\n"):
+            parts = line.split()
+            # mount output: <device> on <mountpoint> type <fs> (<options>)
+            if len(parts) >= 3 and parts[1] == "on" and parts[2] == mountpoint:
+                missing = [opt for opt in opts if opt not in line]
+                if missing:
+                    findings.append(
+                        Finding(
+                            severity=Severity.MEDIUM,
+                            check_id="FS-014",
+                            title=f"Insecure Mount Options: {mountpoint}",
+                            description=(
+                                f"{mountpoint} is missing security mount options: "
+                                + ", ".join(missing)
+                            ),
+                            evidence=line,
+                            impact="Missing mount restrictions may allow privilege escalation or code execution",
+                            remediation=(
+                                f"Add {', '.join(missing)} to the {mountpoint} entry in /etc/fstab"
+                            ),
+                            phase="Phase 3",
+                        )
+                    )
+                break
+
+    return findings
+
+
 def run_filesystem_checks() -> list[Finding]:
     """Run all file system and permissions checks."""
     findings = []
@@ -384,5 +430,6 @@ def run_filesystem_checks() -> list[Finding]:
     findings.extend(check_tmp_sensitive_files())
     findings.extend(check_backup_files())
     findings.extend(check_sudoers_integrity())
+    findings.extend(check_mount_options())
 
     return findings

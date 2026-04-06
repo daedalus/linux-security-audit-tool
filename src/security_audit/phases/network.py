@@ -386,6 +386,35 @@ def check_unwanted_network_services() -> list[Finding]:
     return findings
 
 
+@cached_check("check_ntp_sync")
+def check_ntp_sync() -> list[Finding]:
+    """Check if NTP time synchronization is configured and active."""
+    findings = []
+
+    ntp_services = ["systemd-timesyncd", "chronyd", "ntp", "ntpd"]
+    for service in ntp_services:
+        stdout, _, rc = run_command(
+            f"systemctl is-active {service} 2>/dev/null"
+        )
+        if rc == 0 and stdout.strip() == "active":
+            return findings
+
+    findings.append(
+        Finding(
+            severity=Severity.MEDIUM,
+            check_id="NET-015",
+            title="NTP Not Configured",
+            description="No active NTP daemon found (systemd-timesyncd, chronyd, or ntpd)",
+            evidence="None of systemd-timesyncd, chronyd, ntp, ntpd reported active",
+            impact="System clock may drift, affecting log timestamps and TLS certificate validation",
+            remediation="Enable an NTP daemon: systemctl enable --now systemd-timesyncd",
+            phase="Phase 2",
+        )
+    )
+
+    return findings
+
+
 def run_network_checks() -> list[Finding]:
     """Run all network exposure checks."""
     findings = []
@@ -402,5 +431,6 @@ def run_network_checks() -> list[Finding]:
     findings.extend(check_open_proxy())
     findings.extend(check_open_relay())
     findings.extend(check_unwanted_network_services())
+    findings.extend(check_ntp_sync())
 
     return findings

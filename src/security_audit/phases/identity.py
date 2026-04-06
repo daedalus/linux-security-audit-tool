@@ -409,6 +409,112 @@ def check_group_modifications() -> list[Finding]:
     return findings
 
 
+@cached_check("check_pam_faillock")
+def check_pam_faillock() -> list[Finding]:
+    """Check PAM account lockout configuration (pam_faillock or pam_tally2)."""
+    findings = []
+
+    stdout, _, rc = run_command("grep -r 'pam_faillock' /etc/pam.d/ 2>/dev/null")
+    if rc == 0 and stdout and stdout.strip():
+        return findings
+
+    stdout2, _, rc2 = run_command("grep -r 'pam_tally2' /etc/pam.d/ 2>/dev/null")
+    if rc2 == 0 and stdout2 and stdout2.strip():
+        return findings
+
+    findings.append(
+        Finding(
+            severity=Severity.MEDIUM,
+            check_id="IDENT-016",
+            title="No PAM Account Lockout Configured",
+            description="Neither pam_faillock nor pam_tally2 found in PAM configuration",
+            evidence="grep -r 'pam_faillock\\|pam_tally2' /etc/pam.d/ returned no results",
+            impact="No brute-force protection for local account authentication",
+            remediation="Configure pam_faillock in /etc/pam.d/common-auth or /etc/pam.d/system-auth",
+            phase="Phase 1",
+        )
+    )
+
+    return findings
+
+
+@cached_check("check_session_timeout")
+def check_session_timeout() -> list[Finding]:
+    """Check if an idle session timeout (TMOUT) is configured."""
+    findings = []
+
+    configs = [
+        "/etc/profile",
+        "/etc/bashrc",
+        "/etc/bash.bashrc",
+        "/etc/profile.d/",
+    ]
+
+    for config in configs:
+        stdout, _, rc = run_command(f"grep -r 'TMOUT' {config} 2>/dev/null")
+        if rc == 0 and stdout and stdout.strip():
+            return findings
+
+    findings.append(
+        Finding(
+            severity=Severity.MEDIUM,
+            check_id="IDENT-017",
+            title="No Session Timeout Configured",
+            description="TMOUT is not set in any shell configuration file",
+            evidence="No TMOUT setting found in /etc/profile, /etc/bashrc, or /etc/profile.d/",
+            impact="Idle sessions remain open indefinitely, increasing the risk of unauthorized access",
+            remediation="Add 'TMOUT=900' (or less) to /etc/profile or /etc/profile.d/timeout.sh",
+            phase="Phase 1",
+        )
+    )
+
+    return findings
+
+
+@cached_check("check_umask")
+def check_umask() -> list[Finding]:
+    """Check if a secure default umask (027 or 077) is configured."""
+    findings = []
+
+    configs = [
+        "/etc/login.defs",
+        "/etc/profile",
+        "/etc/bashrc",
+        "/etc/bash.bashrc",
+    ]
+
+    for config in configs:
+        stdout, _, rc = run_command(
+            f"grep -E '^\\s*[Uu][Mm][Aa][Ss][Kk]' {config} 2>/dev/null"
+        )
+        if rc == 0 and stdout and stdout.strip():
+            for line in stdout.strip().split("\n"):
+                parts = line.split()
+                if len(parts) >= 2:
+                    umask_val = parts[-1].strip()
+                    try:
+                        val = int(umask_val, 8)
+                        if val >= 0o027:
+                            return findings
+                    except ValueError:
+                        pass
+
+    findings.append(
+        Finding(
+            severity=Severity.MEDIUM,
+            check_id="IDENT-018",
+            title="Insecure Default Umask",
+            description="Default umask is not set to a secure value (027 or more restrictive)",
+            evidence="No secure umask found in /etc/login.defs, /etc/profile, or /etc/bashrc",
+            impact="Newly created files may be world-readable or group-writable",
+            remediation="Set 'UMASK 027' in /etc/login.defs or 'umask 027' in /etc/profile",
+            phase="Phase 1",
+        )
+    )
+
+    return findings
+
+
 def run_identity_checks() -> list[Finding]:
     """Run all identity and access control checks."""
     findings = []
@@ -426,5 +532,8 @@ def run_identity_checks() -> list[Finding]:
     findings.extend(check_password_expiry())
     findings.extend(check_locked_accounts_with_shells())
     findings.extend(check_group_modifications())
+    findings.extend(check_pam_faillock())
+    findings.extend(check_session_timeout())
+    findings.extend(check_umask())
 
     return findings
