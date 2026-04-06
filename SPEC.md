@@ -212,6 +212,18 @@ from security_audit.core import Finding, Severity, AuditContext
 - ICMP broadcast ignore
 - VM swappiness
 - User namespace restrictions
+- AppArmor sshd profile enforcement
+- IP forwarding (should be disabled)
+- Reverse path filtering
+- ICMP redirects (should be disabled)
+- TCP SYN cookies (should be enabled)
+- Source routing (should be disabled)
+- Martian packet logging (should be enabled)
+- SELinux/AppArmor enforcing mode
+- GRUB password protection
+- Full disk encryption (LUKS)
+- TPM attestation
+- SecureBoot status
 
 ### Phase 6: Logging & Monitoring
 - auditd status
