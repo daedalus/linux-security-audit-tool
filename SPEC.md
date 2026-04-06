@@ -233,7 +233,7 @@ from security_audit.core import Finding, Severity, AuditContext
 - SSH host key strength (RSA, DSA, ECDSA, Ed25519)
 - SSH key exchange algorithms
 - SSH ciphers and MACs
-- TLS configuration
+- TLS configuration and weak ciphers
 - SSL certificate expiry
 - Entropy availability
 - GPG keys
