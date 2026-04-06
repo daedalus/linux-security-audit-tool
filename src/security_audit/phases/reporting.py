@@ -620,6 +620,49 @@ def calculate_security_score(findings: list[Finding]) -> int:
     return max(0, 100 - total_deduction)
 
 
+def generate_json_report(context: AuditContext, findings: list[Finding]) -> str:
+    """Generate JSON security report."""
+    import json
+
+    classified = classify_severity(findings)
+    score = calculate_security_score(findings)
+
+    report = {
+        "audit_info": {
+            "hostname": context.hostname or "Unknown",
+            "kernel": context.kernel or "Unknown",
+            "os_release": context.os_release or "Unknown",
+            "virtualization": context.virtualization or "Unknown",
+            "is_container": context.is_container,
+            "timestamp": datetime.now().isoformat(),
+        },
+        "summary": {
+            "security_score": score,
+            "total_findings": len(findings),
+            "critical_count": len(classified["critical"]),
+            "high_count": len(classified["high"]),
+            "medium_count": len(classified["medium"]),
+            "low_count": len(classified["low"]),
+            "info_count": len(classified["info"]),
+        },
+        "findings": [
+            {
+                "check_id": f.check_id,
+                "title": f.title,
+                "severity": f.severity.value,
+                "description": f.description,
+                "evidence": f.evidence,
+                "impact": f.impact,
+                "remediation": f.remediation,
+                "phase": f.phase,
+            }
+            for f in findings
+        ],
+    }
+
+    return json.dumps(report, indent=2)
+
+
 def run_reporting(context: AuditContext, findings: list[Finding]) -> dict:
     """Run reporting phase."""
     classified = classify_severity(findings)

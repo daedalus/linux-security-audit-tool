@@ -331,7 +331,7 @@ def check_password_quality() -> list[Finding]:
     findings = []
 
     stdout, _, rc = run_command(
-        "grep -r 'password.*requisite\\|password.*required' /etc/pam.d/* 2>/dev/null | grep -i pam_unix.so|pam_pwquality.so|pam_cracklib.so"
+        "grep -r -E 'password.*requisite|password.*required' /etc/pam.d/* 2>/dev/null | grep -iE 'pam_unix.so|pam_pwquality.so|pam_cracklib.so'"
     )
     if rc != 0 or not stdout:
         findings.append(

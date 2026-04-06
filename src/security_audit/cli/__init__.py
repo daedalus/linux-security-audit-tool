@@ -21,6 +21,7 @@ from security_audit.core import (
 from security_audit.phases import (
     calculate_security_score,
     gather_context,
+    generate_json_report,
     generate_markdown_report,
     generate_pdf_report,
     generate_remediation_script,
@@ -156,6 +157,13 @@ def cli() -> None:
     help="Generate PDF executive report",
 )
 @click.option(
+    "--json",
+    "-j",
+    type=click.Path(),
+    default=None,
+    help="Output file for JSON report",
+)
+@click.option(
     "--remediate-script",
     type=click.Path(),
     default=None,
@@ -182,6 +190,7 @@ def audit(
     remediate_only_critical: bool,
     remediate_non_critical: bool,
     pdf: str | None,
+    json: str | None,
     remediate_script: str | None,
     cache: bool,
     cache_ttl: int,
@@ -335,6 +344,12 @@ def audit(
     if pdf:
         generate_pdf_report(context, all_findings, pdf)
         console.print(f"\n[green]PDF report saved to {pdf}[/green]")
+
+    if json:
+        json_report = generate_json_report(context, all_findings)
+        with open(json, "w", encoding="utf-8") as f:
+            f.write(json_report)
+        console.print(f"\n[green]JSON report saved to {json}[/green]")
 
     if remediate_all:
         console.print("\n[bold yellow]Applying remediations (all)...[/bold yellow]")

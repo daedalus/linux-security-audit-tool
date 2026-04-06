@@ -16,6 +16,7 @@ from .reporting import (
     classify_severity,
     generate_markdown_report,
     generate_pdf_report,
+    generate_json_report,
     generate_remediation_script,
     run_reporting,
 )
@@ -37,6 +38,7 @@ __all__ = [
     "run_reporting",
     "generate_markdown_report",
     "generate_pdf_report",
+    "generate_json_report",
     "generate_remediation_script",
     "calculate_security_score",
     "classify_severity",
