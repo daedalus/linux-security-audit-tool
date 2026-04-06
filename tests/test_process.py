@@ -118,3 +118,58 @@ class TestCheckRkhunterInstallation:
         ]
         findings = check_rkhunter_installation()
         assert len(findings) == 0
+
+
+class TestCheckUnnecessaryNetworkServices:
+    """Tests for check_unnecessary_network_services."""
+
+    @patch("security_audit.phases.process.run_command")
+    def test_cups_running(self, mock_run):
+        """Test when cups is running."""
+        mock_run.return_value = ("active", "", 0)
+        findings = check_unnecessary_network_services()
+        assert any(f.title == "Unnecessary Service Running: cups" for f in findings)
+
+    @patch("security_audit.phases.process.run_command")
+    def test_bluetooth_running(self, mock_run):
+        """Test when bluetooth is running."""
+        mock_run.return_value = ("active", "", 0)
+        findings = check_unnecessary_network_services()
+        assert any(
+            f.title == "Unnecessary Service Running: bluetooth" for f in findings
+        )
+
+
+class TestCheckSystemdTimers:
+    """Tests for check_systemd_timers."""
+
+    @patch("security_audit.phases.process.run_command")
+    def test_timers_found(self, mock_run):
+        """Test when timers are found."""
+        mock_run.return_value = ("timer1.timer timer2.timer", "", 0)
+        findings = check_systemd_timers()
+        assert len(findings) == 1
+        assert findings[0].check_id == "PROC-009"
+
+
+class TestCheckSeccompStatus:
+    """Tests for check_seccomp_status."""
+
+    @patch("security_audit.phases.process.run_command")
+    def test_seccomp_disabled(self, mock_run):
+        """Test when seccomp is disabled."""
+        mock_run.return_value = ("seccomp: 0 (disabled)", "", 0)
+        findings = check_seccomp_status()
+        assert len(findings) == 1
+
+
+class TestCheckSysVInitScripts:
+    """Tests for check_sysv_init_scripts."""
+
+    @patch("security_audit.phases.process.run_command")
+    def test_sysv_scripts_found(self, mock_run):
+        """Test when SysV init scripts found."""
+        mock_run.return_value = ("network\nfirewall", "", 0)
+        findings = check_sysv_init_scripts()
+        assert len(findings) == 1
+        assert findings[0].check_id == "PROC-013"

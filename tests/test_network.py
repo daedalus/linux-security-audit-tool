@@ -157,3 +157,56 @@ class TestCheckUnwantedNetworkServices:
         findings = check_unwanted_network_services()
         assert len(findings) == 1
         assert findings[0].check_id == "NET-014"
+
+
+class TestCheckUnnecessaryServices:
+    """Tests for check_unnecessary_services."""
+
+    @patch("security_audit.phases.network.run_command")
+    def test_telnet_running(self, mock_run):
+        """Test when telnet is running."""
+        mock_run.return_value = ("telnet.service loaded active running Telnetd", "", 0)
+        findings = check_unnecessary_services()
+        assert any(f.check_id == "NET-005" for f in findings)
+
+
+class TestCheckIPv6Hardening:
+    """Tests for check_ipv6_hardening."""
+
+    @patch("security_audit.phases.network.run_command")
+    def test_ipv6_accept_ra_enabled(self, mock_run):
+        """Test when IPv6 accept_ra is enabled."""
+        mock_run.side_effect = [
+            ("1", "", 0),
+            ("1", "", 0),
+            ("1", "", 0),
+            ("1", "", 0),
+            ("1", "", 0),
+            ("1", "", 0),
+        ]
+        findings = check_ipv6_hardening()
+        assert len(findings) >= 1
+
+
+class TestCheckICMPBroadcast:
+    """Tests for check_icmp_broadcast."""
+
+    @patch("security_audit.phases.network.run_command")
+    def test_icmp_broadcast_disabled(self, mock_run):
+        """Test when ICMP broadcast is not ignored."""
+        mock_run.return_value = ("0", "", 0)
+        findings = check_icmp_broadcast()
+        assert len(findings) == 1
+        assert findings[0].check_id == "NET-010"
+
+
+class TestCheckSourceRouting:
+    """Tests for check_source_routing."""
+
+    @patch("security_audit.phases.network.run_command")
+    def test_source_routing_enabled(self, mock_run):
+        """Test when source routing is enabled."""
+        mock_run.return_value = ("1", "", 0)
+        findings = check_source_routing()
+        assert len(findings) == 1
+        assert findings[0].check_id == "NET-011"

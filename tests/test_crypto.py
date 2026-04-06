@@ -34,9 +34,60 @@ class TestCheckWeakSSHKeys:
         mock_run.side_effect = [
             ("4096 SHA256:abc", "", 0),
             ("4096 SHA256:def", "", 0),
+            ("", "", 1),
+            ("256 SHA256:ghi", "", 0),
+            ("", "", 1),
         ]
         findings = check_weak_ssh_keys()
         assert any(f.check_id == "CRYPTO-002" for f in findings)
+
+    @patch("security_audit.phases.crypto.run_command")
+    def test_weak_ecdsa_key(self, mock_run):
+        """Test when weak ECDSA key found."""
+        mock_run.side_effect = [
+            ("4096 SHA256:abc", "", 0),
+            ("", "", 1),
+            ("128 SHA256:def", "", 0),
+            ("", "", 1),
+        ]
+        findings = check_weak_ssh_keys()
+        assert any(f.check_id == "CRYPTO-002A" for f in findings)
+
+    @patch("security_audit.phases.crypto.run_command")
+    def test_no_ed25519_key(self, mock_run):
+        """Test when no Ed25519 key found."""
+        mock_run.side_effect = [
+            ("4096 SHA256:abc", "", 0),
+            ("", "", 1),
+            ("256 SHA256:def", "", 0),
+            ("", "", 1),
+        ]
+        findings = check_weak_ssh_keys()
+        assert any(f.check_id == "CRYPTO-002B" for f in findings)
+
+
+class TestCheckTLSConfiguration:
+    """Tests for check_tls_configuration."""
+
+    @patch("security_audit.phases.crypto.run_command")
+    def test_no_tls_config(self, mock_run):
+        """Test when no TLS configuration found."""
+        mock_run.side_effect = [
+            ("", "", 1),
+            ("", "", 1),
+        ]
+        findings = check_tls_configuration()
+        assert len(findings) == 0
+
+    @patch("security_audit.phases.crypto.run_command")
+    def test_weak_tls_cipher(self, mock_run):
+        """Test when weak TLS cipher found."""
+        mock_run.side_effect = [
+            ("", "", 1),
+            ("SSLCipherSuite RC4", "", 0),
+        ]
+        findings = check_tls_configuration()
+        assert any(f.check_id == "CRYPTO-003A" for f in findings)
 
 
 class TestCheckEntropyAvailable:

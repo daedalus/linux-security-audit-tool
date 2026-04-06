@@ -45,6 +45,44 @@ def check_weak_ssh_keys() -> list[Finding]:
             )
         )
 
+    stdout, _, rc = run_command(
+        "ssh-keygen -l -f /etc/ssh/ssh_host_ecdsa_key.pub 2>/dev/null"
+    )
+    if rc == 0 and stdout:
+        parts = stdout.split()
+        if len(parts) >= 1:
+            key_size = int(parts[0])
+            if key_size < 256:
+                findings.append(
+                    Finding(
+                        severity=Severity.MEDIUM,
+                        check_id="CRYPTO-002A",
+                        title="Weak SSH ECDSA Key",
+                        description=f"ECDSA key size: {key_size} bits (minimum 256)",
+                        evidence=stdout,
+                        impact="Small ECDSA keys may be vulnerable",
+                        remediation="Regenerate SSH host keys: ssh-keygen -t ecdsa -b 521",
+                        phase="Phase 8",
+                    )
+                )
+
+    stdout, _, rc = run_command(
+        "ssh-keygen -l -f /etc/ssh/ssh_host_ed25519_key.pub 2>/dev/null"
+    )
+    if rc != 0:
+        findings.append(
+            Finding(
+                severity=Severity.MEDIUM,
+                check_id="CRYPTO-002B",
+                title="No SSH Ed25519 Key",
+                description="No Ed25519 host key found",
+                evidence="ssh_host_ed25519_key.pub not found",
+                impact="Ed25519 is recommended for better security",
+                remediation="Generate Ed25519 key: ssh-keygen -t ed25519",
+                phase="Phase 8",
+            )
+        )
+
     return findings
 
 
@@ -69,6 +107,27 @@ def check_tls_configuration() -> list[Finding]:
                         evidence=stdout,
                         impact="Vulnerable to protocol downgrade attacks",
                         remediation="Disable weak protocols in web server config",
+                        phase="Phase 8",
+                    )
+                )
+
+    weak_ciphers = ["exp-null", "RC4", "3des", "aes128-md5", "aes256-md5"]
+
+    stdout, _, rc = run_command(
+        "grep -r 'SSLCipherSuite\\|ssl_ciphers' /etc/apache2 /etc/nginx 2>/dev/null"
+    )
+    if rc == 0 and stdout:
+        for cipher in weak_ciphers:
+            if cipher.lower() in stdout.lower():
+                findings.append(
+                    Finding(
+                        severity=Severity.MEDIUM,
+                        check_id="CRYPTO-003A",
+                        title=f"Weak TLS Cipher: {cipher}",
+                        description=f"Weak TLS cipher {cipher} is configured",
+                        evidence=stdout,
+                        impact="Weak cryptographic cipher in use",
+                        remediation="Use strong ciphers (e.g., AES-GCM, ChaCha20)",
                         phase="Phase 8",
                     )
                 )
