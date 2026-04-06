@@ -1,10 +1,11 @@
 """Tests for the CLI module."""
 
 import pytest
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 from click.testing import CliRunner
 from security_audit.cli import cli, version, print_finding, print_summary
 from security_audit.core import Finding, Severity
+from security_audit import __version__
 
 
 class TestCLI:
@@ -22,7 +23,7 @@ class TestCLI:
         runner = CliRunner()
         result = runner.invoke(version)
         assert result.exit_code == 0
-        assert "v0.1.0" in result.output
+        assert f"v{__version__}" in result.output
 
 
 class TestPrintFinding:

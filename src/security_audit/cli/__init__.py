@@ -8,15 +8,15 @@ from rich import print as rprint
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
+from security_audit import __version__
 from security_audit.core import (
     DEBUG,
     Finding,
     Severity,
     check_root,
-    set_debug,
     run_command,
+    set_debug,
 )
-from security_audit import __version__
 from security_audit.phases import (
     calculate_security_score,
     gather_context,
@@ -316,7 +316,7 @@ def audit(
     if remediate_all:
         console.print("\n[bold yellow]Applying remediations (all)...[/bold yellow]")
         script = generate_remediation_script(all_findings)
-        console.print(f"\n[dim]Generated remediation script:[/dim]")
+        console.print("\n[dim]Generated remediation script:[/dim]")
         console.print(f"[dim]{script[:500]}...[/dim]")
         console.print(
             "\n[yellow]Note: Automatic remediation is not yet fully implemented.[/yellow]"
@@ -327,7 +327,7 @@ def audit(
     elif remediate_only_critical:
         critical = [f for f in all_findings if f.severity == Severity.CRITICAL]
         console.print(
-            f"\n[bold yellow]Applying remediations (CRITICAL only)...[/bold yellow]"
+            "\n[bold yellow]Applying remediations (CRITICAL only)...[/bold yellow]"
         )
         script = generate_remediation_script(critical)
         console.print(
@@ -343,7 +343,7 @@ def audit(
     elif remediate_non_critical:
         non_critical = [f for f in all_findings if f.severity != Severity.CRITICAL]
         console.print(
-            f"\n[bold yellow]Applying remediations (non-CRITICAL)...[/bold yellow]"
+            "\n[bold yellow]Applying remediations (non-CRITICAL)...[/bold yellow]"
         )
         script = generate_remediation_script(non_critical)
         console.print(
