@@ -1,6 +1,7 @@
 # Linux Security Audit Tool
 
 A comprehensive CLI tool for auditing Linux system security posture.
+For all the checks to effectively be done this tool it needs root access.
 
 [![PyPI](https://img.shields.io/pypi/v/linux-security-audit-tool.svg)](https://pypi.org/project/linux-security-audit-tool/)
 [![Python](https://img.shields.io/pypi/pyversions/linux-security-audit-tool.svg)](https://pypi.org/project/linux-security-audit-tool/)
@@ -9,22 +10,24 @@ A comprehensive CLI tool for auditing Linux system security posture.
 ## Install
 
 ```bash
+python3 -m venv venv
+source venv/bin/activate
 pip install linux-security-audit-tool
 ```
 
 ## Usage
 
 ```bash
-security-audit --help
-security-audit audit
-security-audit audit -p 0 -1           # Run specific phases
-security-audit audit -o report.md      # Save markdown report
-security-audit audit --quiet           # Summary only
-security-audit audit --debug           # Show executed commands
-security-audit audit --remediate-all   # Generate remediation script for all findings
-security-audit audit --remediate-only-critical  # Generate remediation script for CRITICAL only
-security-audit audit --remediate-non-critical   # Generate remediation script for non-CRITICAL
-security-audit audit --pdf report.pdf  # Generate PDF report
+sudo env "PATH=$PATH" security-audit --help
+sudo env "PATH=$PATH" security-audit audit
+sudo env "PATH=$PATH" security-audit audit -p 0 -1           # Run specific phases
+sudo env "PATH=$PATH" security-audit audit -o report.md      # Save markdown report
+sudo env "PATH=$PATH" security-audit audit --quiet           # Summary only
+sudo env "PATH=$PATH" security-audit audit --debug           # Show executed commands
+sudo env "PATH=$PATH" security-audit audit --remediate-all   # Generate remediation script for all findings
+sudo env "PATH=$PATH" security-audit audit --remediate-only-critical  # Generate remediation script for CRITICAL only
+sudo env "PATH=$PATH" security-audit audit --remediate-non-critical   # Generate remediation script for non-CRITICAL
+sudo env "PATH=$PATH" security-audit audit --pdf report.pdf  # Generate PDF report
 ```
 
 ## CLI
