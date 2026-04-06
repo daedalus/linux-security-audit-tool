@@ -1,6 +1,7 @@
 # Linux Security Audit Tool
 
 A comprehensive CLI tool for auditing Linux system security posture.
+
 For all the checks to effectively be done this tool it needs root access.
 
 [![PyPI](https://img.shields.io/pypi/v/linux-security-audit-tool.svg)](https://pypi.org/project/linux-security-audit-tool/)
