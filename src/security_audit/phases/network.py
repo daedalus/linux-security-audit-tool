@@ -2,9 +2,10 @@
 
 import re
 
-from ..core import Finding, Severity, run_command
+from ..core import Finding, Severity, cached_check, run_command
 
 
+@cached_check("check_listening_services")
 def check_listening_services() -> list[Finding]:
     """Check for listening services on the system."""
     findings = []
@@ -39,6 +40,7 @@ def check_listening_services() -> list[Finding]:
     return findings
 
 
+@cached_check("check_firewall_status")
 def check_firewall_status() -> list[Finding]:
     """Check firewall status and rules."""
     findings = []
@@ -78,6 +80,7 @@ def check_firewall_status() -> list[Finding]:
     return findings
 
 
+@cached_check("check_sysctl_network_hardening")
 def check_sysctl_network_hardening() -> list[Finding]:
     """Check sysctl network hardening parameters."""
     findings = []
@@ -113,6 +116,7 @@ def check_sysctl_network_hardening() -> list[Finding]:
     return findings
 
 
+@cached_check("check_unnecessary_services")
 def check_unnecessary_services() -> list[Finding]:
     """Check for unnecessary network services."""
     findings = []
@@ -148,6 +152,7 @@ def check_unnecessary_services() -> list[Finding]:
     return findings
 
 
+@cached_check("check_ufw_firewall")
 def check_ufw_firewall() -> list[Finding]:
     """Check UFW firewall status and rules."""
     findings = []
@@ -185,6 +190,7 @@ def check_ufw_firewall() -> list[Finding]:
     return findings
 
 
+@cached_check("check_firewalld")
 def check_firewalld() -> list[Finding]:
     """Check firewalld firewall status and rules."""
     findings = []
@@ -210,6 +216,7 @@ def check_firewalld() -> list[Finding]:
     return findings
 
 
+@cached_check("check_ipv6_hardening")
 def check_ipv6_hardening() -> list[Finding]:
     """Check IPv6 hardening parameters."""
     findings = []
@@ -244,6 +251,7 @@ def check_ipv6_hardening() -> list[Finding]:
     return findings
 
 
+@cached_check("check_icmp_broadcast")
 def check_icmp_broadcast() -> list[Finding]:
     """Check ICMP broadcast protection."""
     findings = []
@@ -267,6 +275,7 @@ def check_icmp_broadcast() -> list[Finding]:
     return findings
 
 
+@cached_check("check_source_routing")
 def check_source_routing() -> list[Finding]:
     """Check source packet routing."""
     findings = []
@@ -292,6 +301,7 @@ def check_source_routing() -> list[Finding]:
     return findings
 
 
+@cached_check("check_open_proxy")
 def check_open_proxy() -> list[Finding]:
     """Check for open proxy services."""
     findings = []
@@ -318,6 +328,7 @@ def check_open_proxy() -> list[Finding]:
     return findings
 
 
+@cached_check("check_open_relay")
 def check_open_relay() -> list[Finding]:
     """Check for open SMTP relay."""
     findings = []
@@ -348,6 +359,7 @@ def check_open_relay() -> list[Finding]:
     return findings
 
 
+@cached_check("check_unwanted_network_services")
 def check_unwanted_network_services() -> list[Finding]:
     """Check for unwanted network services (FTP, Telnet, etc.)."""
     findings = []

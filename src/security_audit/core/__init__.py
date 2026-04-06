@@ -5,8 +5,25 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Optional
 
+from .cache import CheckCache, cached_check, clear_cache, get_cache, init_cache
+
 logger = logging.getLogger("security_audit")
 DEBUG = False
+
+__all__ = [
+    "AuditContext",
+    "CheckCache",
+    "DEBUG",
+    "Finding",
+    "Severity",
+    "cached_check",
+    "check_root",
+    "clear_cache",
+    "get_cache",
+    "init_cache",
+    "run_command",
+    "set_debug",
+]
 
 
 def set_debug(enabled: bool) -> None:

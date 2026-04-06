@@ -1,6 +1,6 @@
 """Phase 3 - File System & Permissions module."""
 
-from ..core import Finding, Severity, run_command
+from ..core import Finding, Severity, cached_check, run_command
 
 EXPECTED_SUID = [
     "/usr/bin/passwd",
@@ -33,6 +33,7 @@ DANGEROUS_SUID = [
 ]
 
 
+@cached_check("check_suid_binaries")
 def check_suid_binaries() -> list[Finding]:
     """Check for SUID binaries on the system."""
     findings = []
@@ -57,6 +58,7 @@ def check_suid_binaries() -> list[Finding]:
     return findings
 
 
+@cached_check("check_sgid_binaries")
 def check_sgid_binaries() -> list[Finding]:
     """Check for SGID binaries on the system."""
     findings = []
@@ -79,6 +81,7 @@ def check_sgid_binaries() -> list[Finding]:
     return findings
 
 
+@cached_check("check_world_writable_files")
 def check_world_writable_files() -> list[Finding]:
     """Check for world-writable files."""
     findings = []
@@ -104,6 +107,7 @@ def check_world_writable_files() -> list[Finding]:
     return findings
 
 
+@cached_check("check_world_writable_dirs")
 def check_world_writable_dirs() -> list[Finding]:
     """Check for world-writable directories."""
     findings = []
@@ -128,6 +132,7 @@ def check_world_writable_dirs() -> list[Finding]:
     return findings
 
 
+@cached_check("check_unowned_files")
 def check_unowned_files() -> list[Finding]:
     """Check for unowned files."""
     findings = []
@@ -153,6 +158,7 @@ def check_unowned_files() -> list[Finding]:
     return findings
 
 
+@cached_check("check_critical_file_permissions")
 def check_critical_file_permissions() -> list[Finding]:
     """Check permissions on critical system files."""
     findings = []
@@ -197,6 +203,7 @@ def check_critical_file_permissions() -> list[Finding]:
     return findings
 
 
+@cached_check("check_cron_jobs")
 def check_cron_jobs() -> list[Finding]:
     """Check for suspicious cron jobs."""
     findings = []
@@ -245,6 +252,7 @@ def check_cron_jobs() -> list[Finding]:
     return findings
 
 
+@cached_check("check_ssh_private_key_permissions")
 def check_ssh_private_key_permissions() -> list[Finding]:
     """Check SSH private key file permissions."""
     findings = []
@@ -272,6 +280,7 @@ def check_ssh_private_key_permissions() -> list[Finding]:
     return findings
 
 
+@cached_check("check_tmp_sensitive_files")
 def check_tmp_sensitive_files() -> list[Finding]:
     """Check for sensitive files in /tmp."""
     findings = []
@@ -296,6 +305,7 @@ def check_tmp_sensitive_files() -> list[Finding]:
     return findings
 
 
+@cached_check("check_backup_files")
 def check_backup_files() -> list[Finding]:
     """Check for backup files in /etc."""
     findings = []
@@ -321,6 +331,7 @@ def check_backup_files() -> list[Finding]:
     return findings
 
 
+@cached_check("check_sudoers_integrity")
 def check_sudoers_integrity() -> list[Finding]:
     """Check sudoers file integrity."""
     findings = []

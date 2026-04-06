@@ -1,8 +1,9 @@
 """Phase 4 - Process & Service Posture module."""
 
-from ..core import Finding, Severity, run_command
+from ..core import Finding, Severity, cached_check, run_command
 
 
+@cached_check("check_running_services")
 def check_running_services() -> list[Finding]:
     """Check running services on the system."""
     findings = []
@@ -36,6 +37,7 @@ def check_running_services() -> list[Finding]:
     return findings
 
 
+@cached_check("check_enabled_services")
 def check_enabled_services() -> list[Finding]:
     """Check services enabled at boot."""
     findings = []
@@ -69,6 +71,7 @@ def check_enabled_services() -> list[Finding]:
     return findings
 
 
+@cached_check("check_docker_socket")
 def check_docker_socket() -> list[Finding]:
     """Check for Docker socket access."""
     findings = []
@@ -91,6 +94,7 @@ def check_docker_socket() -> list[Finding]:
     return findings
 
 
+@cached_check("check_apparmor_status")
 def check_apparmor_status() -> list[Finding]:
     """Check AppArmor status."""
     findings = []
@@ -129,6 +133,7 @@ def check_apparmor_status() -> list[Finding]:
     return findings
 
 
+@cached_check("check_selinux_status")
 def check_selinux_status() -> list[Finding]:
     """Check SELinux status."""
     findings = []
@@ -165,6 +170,7 @@ def check_selinux_status() -> list[Finding]:
     return findings
 
 
+@cached_check("check_unnecessary_network_services")
 def check_unnecessary_network_services() -> list[Finding]:
     """Check for unnecessary network services."""
     findings = []
@@ -200,6 +206,7 @@ def check_unnecessary_network_services() -> list[Finding]:
     return findings
 
 
+@cached_check("check_systemd_timers")
 def check_systemd_timers() -> list[Finding]:
     """Check systemd timers."""
     findings = []
@@ -222,6 +229,7 @@ def check_systemd_timers() -> list[Finding]:
     return findings
 
 
+@cached_check("check_seccomp_status")
 def check_seccomp_status() -> list[Finding]:
     """Check Seccomp profile status."""
     findings = []
@@ -260,6 +268,7 @@ def check_seccomp_status() -> list[Finding]:
     return findings
 
 
+@cached_check("check_service_file_permissions")
 def check_service_file_permissions() -> list[Finding]:
     """Check systemd service file permissions."""
     findings = []
@@ -284,6 +293,7 @@ def check_service_file_permissions() -> list[Finding]:
     return findings
 
 
+@cached_check("check_sysv_init_scripts")
 def check_sysv_init_scripts() -> list[Finding]:
     """Check for SysV init scripts."""
     findings = []
@@ -308,6 +318,7 @@ def check_sysv_init_scripts() -> list[Finding]:
     return findings
 
 
+@cached_check("check_rkhunter_installation")
 def check_rkhunter_installation() -> list[Finding]:
     """Check if rkhunter is installed and configured."""
     findings = []

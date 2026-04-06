@@ -1,8 +1,9 @@
 """Phase 7 - Package & Update Hygiene module."""
 
-from ..core import Finding, Severity, run_command
+from ..core import Finding, Severity, cached_check, run_command
 
 
+@cached_check("check_pending_updates")
 def check_pending_updates() -> list[Finding]:
     """Check for pending security updates."""
     findings = []
@@ -40,6 +41,7 @@ def check_pending_updates() -> list[Finding]:
     return findings
 
 
+@cached_check("check_last_update")
 def check_last_update() -> list[Finding]:
     """Check when system was last updated."""
     findings = []
@@ -64,6 +66,7 @@ def check_last_update() -> list[Finding]:
     return findings
 
 
+@cached_check("check_untrusted_repos")
 def check_untrusted_repos() -> list[Finding]:
     """Check for untrusted package repositories."""
     findings = []
@@ -87,6 +90,7 @@ def check_untrusted_repos() -> list[Finding]:
     return findings
 
 
+@cached_check("check_unnecessary_packages")
 def check_unnecessary_packages() -> list[Finding]:
     """Check for unnecessary packages."""
     findings = []
@@ -113,6 +117,7 @@ def check_unnecessary_packages() -> list[Finding]:
     return findings
 
 
+@cached_check("check_deprecated_packages")
 def check_deprecated_packages() -> list[Finding]:
     """Check for deprecated/insecure packages."""
     findings = []

@@ -55,7 +55,10 @@ Commands:
 - `--remediate-all`, `-r`         - Generate remediation script for all findings
 - `--remediate-only-critical`     - Generate remediation script for CRITICAL findings only
 - `--remediate-non-critical`      - Generate remediation script for non-CRITICAL findings
+- `--remediate-script FILE`       - Save remediation script to file
 - `--pdf FILE`                    - Generate PDF executive report
+- `--cache`                       - Enable caching of check results
+- `--cache-ttl INTEGER`           - Cache TTL in seconds (default: 3600)
 
 ## Development
 

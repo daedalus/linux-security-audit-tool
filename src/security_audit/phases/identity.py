@@ -1,8 +1,9 @@
 """Phase 1 - Identity & Access Control module."""
 
-from ..core import Finding, Severity, check_root, run_command
+from ..core import Finding, Severity, cached_check, check_root, run_command
 
 
+@cached_check("check_uid_zero_accounts")
 def check_uid_zero_accounts() -> list[Finding]:
     """Check for duplicate UID 0 accounts."""
     findings = []
@@ -28,6 +29,7 @@ def check_uid_zero_accounts() -> list[Finding]:
     return findings
 
 
+@cached_check("check_system_accounts_with_shells")
 def check_system_accounts_with_shells() -> list[Finding]:
     """Check for system accounts with interactive shells."""
     findings = []
@@ -52,6 +54,7 @@ def check_system_accounts_with_shells() -> list[Finding]:
     return findings
 
 
+@cached_check("check_passwordless_accounts")
 def check_passwordless_accounts() -> list[Finding]:
     """Check for accounts with empty passwords."""
     if not check_root():
@@ -79,6 +82,7 @@ def check_passwordless_accounts() -> list[Finding]:
     return findings
 
 
+@cached_check("check_sudo_nopasswd")
 def check_sudo_nopasswd() -> list[Finding]:
     """Check for sudo NOPASSWD configurations."""
     findings = []
@@ -112,6 +116,7 @@ def check_sudo_nopasswd() -> list[Finding]:
     return findings
 
 
+@cached_check("check_sudo_wildcard_abuse")
 def check_sudo_wildcard_abuse() -> list[Finding]:
     """Check for dangerous sudo wildcard patterns."""
     findings = []
@@ -147,6 +152,7 @@ def check_sudo_wildcard_abuse() -> list[Finding]:
     return findings
 
 
+@cached_check("check_privileged_groups")
 def check_privileged_groups() -> list[Finding]:
     """Check for users in privileged groups."""
     findings = []
@@ -177,6 +183,7 @@ def check_privileged_groups() -> list[Finding]:
     return findings
 
 
+@cached_check("check_ssh_root_login")
 def check_ssh_root_login() -> list[Finding]:
     """Check if root can login via SSH."""
     findings = []
@@ -200,6 +207,7 @@ def check_ssh_root_login() -> list[Finding]:
     return findings
 
 
+@cached_check("check_ssh_password_auth")
 def check_ssh_password_auth() -> list[Finding]:
     """Check if password authentication is enabled."""
     findings = []
@@ -223,6 +231,7 @@ def check_ssh_password_auth() -> list[Finding]:
     return findings
 
 
+@cached_check("check_unauthorized_ssh_keys")
 def check_unauthorized_ssh_keys() -> list[Finding]:
     """Check for unauthorized SSH authorized_keys."""
     findings = []
@@ -248,6 +257,7 @@ def check_unauthorized_ssh_keys() -> list[Finding]:
     return findings
 
 
+@cached_check("check_password_policy")
 def check_password_policy() -> list[Finding]:
     """Check password policy settings."""
     findings = []
@@ -313,6 +323,7 @@ def check_password_policy() -> list[Finding]:
     return findings
 
 
+@cached_check("check_password_expiry")
 def check_password_expiry() -> list[Finding]:
     """Check for expired passwords."""
     findings = []
@@ -350,6 +361,7 @@ def check_password_expiry() -> list[Finding]:
     return findings
 
 
+@cached_check("check_locked_accounts_with_shells")
 def check_locked_accounts_with_shells() -> list[Finding]:
     """Check for locked accounts that still have valid shells."""
     findings = []
@@ -374,6 +386,7 @@ def check_locked_accounts_with_shells() -> list[Finding]:
     return findings
 
 
+@cached_check("check_group_modifications")
 def check_group_modifications() -> list[Finding]:
     """Check for recent modifications to /etc/group."""
     findings = []

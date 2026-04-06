@@ -1,8 +1,9 @@
 """Phase 8 - Cryptographic Posture module."""
 
-from ..core import Finding, Severity, run_command
+from ..core import Finding, Severity, cached_check, run_command
 
 
+@cached_check("check_weak_ssh_keys")
 def check_weak_ssh_keys() -> list[Finding]:
     """Check SSH host key strength."""
     findings = []
@@ -86,6 +87,7 @@ def check_weak_ssh_keys() -> list[Finding]:
     return findings
 
 
+@cached_check("check_tls_configuration")
 def check_tls_configuration() -> list[Finding]:
     """Check for weak TLS configuration."""
     findings = []
@@ -135,6 +137,7 @@ def check_tls_configuration() -> list[Finding]:
     return findings
 
 
+@cached_check("check_ssl_certificates")
 def check_ssl_certificates() -> list[Finding]:
     """Check SSL certificate expiry."""
     findings = []
@@ -164,6 +167,7 @@ def check_ssl_certificates() -> list[Finding]:
     return findings
 
 
+@cached_check("check_entropy_available")
 def check_entropy_available() -> list[Finding]:
     """Check available entropy."""
     findings = []
@@ -188,6 +192,7 @@ def check_entropy_available() -> list[Finding]:
     return findings
 
 
+@cached_check("check_gpg_keys")
 def check_gpg_keys() -> list[Finding]:
     """Check GPG keys on the system."""
     findings = []
@@ -210,6 +215,7 @@ def check_gpg_keys() -> list[Finding]:
     return findings
 
 
+@cached_check("check_password_hashing")
 def check_password_hashing() -> list[Finding]:
     """Check password hashing algorithm."""
     findings = []
@@ -235,6 +241,7 @@ def check_password_hashing() -> list[Finding]:
     return findings
 
 
+@cached_check("check_ssh_key_exchange")
 def check_ssh_key_exchange() -> list[Finding]:
     """Check SSH key exchange algorithms."""
     findings = []
@@ -276,6 +283,7 @@ def check_ssh_key_exchange() -> list[Finding]:
     return findings
 
 
+@cached_check("check_ssh_ciphers")
 def check_ssh_ciphers() -> list[Finding]:
     """Check SSH ciphers and MACs."""
     findings = []
@@ -317,6 +325,7 @@ def check_ssh_ciphers() -> list[Finding]:
     return findings
 
 
+@cached_check("check_password_quality")
 def check_password_quality() -> list[Finding]:
     """Check password quality via PAM configuration."""
     findings = []
@@ -341,6 +350,7 @@ def check_password_quality() -> list[Finding]:
     return findings
 
 
+@cached_check("check_disk_encryption")
 def check_disk_encryption() -> list[Finding]:
     """Check disk encryption status."""
     findings = []

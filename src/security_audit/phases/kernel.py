@@ -1,8 +1,9 @@
 """Phase 5 - Kernel & OS Hardening module."""
 
-from ..core import Finding, Severity, run_command
+from ..core import Finding, Severity, cached_check, run_command
 
 
+@cached_check("check_aslr")
 def check_aslr() -> list[Finding]:
     """Check if ASLR is enabled."""
     findings = []
@@ -26,6 +27,7 @@ def check_aslr() -> list[Finding]:
     return findings
 
 
+@cached_check("check_dmesg_restrict")
 def check_dmesg_restrict() -> list[Finding]:
     """Check dmesg restriction."""
     findings = []
@@ -49,6 +51,7 @@ def check_dmesg_restrict() -> list[Finding]:
     return findings
 
 
+@cached_check("check_kptr_restrict")
 def check_kptr_restrict() -> list[Finding]:
     """Check kernel pointer restriction."""
     findings = []
@@ -73,6 +76,7 @@ def check_kptr_restrict() -> list[Finding]:
     return findings
 
 
+@cached_check("check_ptrace_scope")
 def check_ptrace_scope() -> list[Finding]:
     """Check ptrace scope."""
     findings = []
@@ -97,6 +101,7 @@ def check_ptrace_scope() -> list[Finding]:
     return findings
 
 
+@cached_check("check_suid_dumpable")
 def check_suid_dumpable() -> list[Finding]:
     """Check suid_dumpable setting."""
     findings = []
@@ -120,6 +125,7 @@ def check_suid_dumpable() -> list[Finding]:
     return findings
 
 
+@cached_check("check_protected_symlinks")
 def check_protected_symlinks() -> list[Finding]:
     """Check protected symlinks."""
     findings = []
@@ -143,6 +149,7 @@ def check_protected_symlinks() -> list[Finding]:
     return findings
 
 
+@cached_check("check_protected_hardlinks")
 def check_protected_hardlinks() -> list[Finding]:
     """Check protected hardlinks."""
     findings = []
@@ -166,6 +173,7 @@ def check_protected_hardlinks() -> list[Finding]:
     return findings
 
 
+@cached_check("check_kernel_module_blacklist")
 def check_kernel_module_blacklist() -> list[Finding]:
     """Check if dangerous kernel modules are blacklisted."""
     findings = []
@@ -205,6 +213,7 @@ def check_kernel_module_blacklist() -> list[Finding]:
     return findings
 
 
+@cached_check("check_sysrq_status")
 def check_sysrq_status() -> list[Finding]:
     """Check SysRq key status."""
     findings = []
@@ -228,6 +237,7 @@ def check_sysrq_status() -> list[Finding]:
     return findings
 
 
+@cached_check("check_vm_swappiness")
 def check_vm_swappiness() -> list[Finding]:
     """Check VM swappiness setting."""
     findings = []
@@ -252,6 +262,7 @@ def check_vm_swappiness() -> list[Finding]:
     return findings
 
 
+@cached_check("check_user_namespaces")
 def check_user_namespaces() -> list[Finding]:
     """Check user namespace restrictions."""
     findings = []

@@ -1,8 +1,9 @@
 """Phase 6 - Logging & Monitoring module."""
 
-from ..core import Finding, Severity, run_command
+from ..core import Finding, Severity, cached_check, run_command
 
 
+@cached_check("check_auditd_status")
 def check_auditd_status() -> list[Finding]:
     """Check if auditd is installed and running."""
     findings = []
@@ -25,6 +26,7 @@ def check_auditd_status() -> list[Finding]:
     return findings
 
 
+@cached_check("check_audit_rules")
 def check_audit_rules() -> list[Finding]:
     """Check configured audit rules."""
     findings = []
@@ -49,6 +51,7 @@ def check_audit_rules() -> list[Finding]:
     return findings
 
 
+@cached_check("check_auth_log_permissions")
 def check_auth_log_permissions() -> list[Finding]:
     """Check auth log permissions."""
     findings = []
@@ -78,6 +81,7 @@ def check_auth_log_permissions() -> list[Finding]:
     return findings
 
 
+@cached_check("check_failed_logins")
 def check_failed_logins() -> list[Finding]:
     """Check for failed login attempts."""
     findings = []
@@ -105,6 +109,7 @@ def check_failed_logins() -> list[Finding]:
     return findings
 
 
+@cached_check("check_logrotate_config")
 def check_logrotate_config() -> list[Finding]:
     """Check logrotate configuration."""
     findings = []
@@ -131,6 +136,7 @@ def check_logrotate_config() -> list[Finding]:
     return findings
 
 
+@cached_check("check_syslog_config")
 def check_syslog_config() -> list[Finding]:
     """Check syslog configuration."""
     findings = []
@@ -158,6 +164,7 @@ def check_syslog_config() -> list[Finding]:
     return findings
 
 
+@cached_check("check_journald_persistence")
 def check_journald_persistence() -> list[Finding]:
     """Check systemd journal persistence."""
     findings = []
@@ -181,6 +188,7 @@ def check_journald_persistence() -> list[Finding]:
     return findings
 
 
+@cached_check("check_audit_sensitive_files")
 def check_audit_sensitive_files() -> list[Finding]:
     """Check if audit rules monitor sensitive files."""
     findings = []
@@ -224,6 +232,7 @@ def check_audit_sensitive_files() -> list[Finding]:
     return findings
 
 
+@cached_check("check_log_ownership")
 def check_log_ownership() -> list[Finding]:
     """Check log file ownership."""
     findings = []
@@ -250,6 +259,7 @@ def check_log_ownership() -> list[Finding]:
     return findings
 
 
+@cached_check("check_failed_ssh_attempts")
 def check_failed_ssh_attempts() -> list[Finding]:
     """Check for failed SSH login attempts."""
     findings = []
@@ -279,8 +289,9 @@ def check_failed_ssh_attempts() -> list[Finding]:
     return findings
 
 
+@cached_check("check_remote_logging")
 def check_remote_logging() -> list[Finding]:
-    """Check remote logging configuration."""
+    """Check if syslog server is forwarding logs to an external system."""
     findings = []
 
     stdout, _, rc = run_command(
@@ -292,26 +303,43 @@ def check_remote_logging() -> list[Finding]:
                 severity=Severity.INFO,
                 check_id="LOG-012",
                 title="Remote Logging Configured",
-                description="System is configured to send logs remotely",
+                description="System is configured to forward logs to external syslog server",
                 evidence=stdout[:200],
-                impact="Logs sent to remote server",
-                remediation="Ensure remote log server is secure",
+                impact="Logs are sent to remote server for centralized monitoring",
+                remediation="Ensure remote log server is secure and properly configured",
                 phase="Phase 6",
             )
         )
     else:
-        findings.append(
-            Finding(
-                severity=Severity.LOW,
-                check_id="LOG-013",
-                title="Remote Logging Not Configured",
-                description="System is not sending logs to remote server",
-                evidence="No remote syslog destination found",
-                impact="Logs may be lost if system is compromised",
-                remediation="Consider configuring remote logging",
-                phase="Phase 6",
-            )
+        stdout, _, rc = run_command(
+            "grep -E '^destination|protocol|forward' /etc/syslog-ng/syslog-ng.conf 2>/dev/null | grep -v '^#'"
         )
+        if rc == 0 and stdout and stdout.strip():
+            findings.append(
+                Finding(
+                    severity=Severity.INFO,
+                    check_id="LOG-012",
+                    title="Remote Logging Configured (syslog-ng)",
+                    description="System is configured to forward logs to external syslog server via syslog-ng",
+                    evidence=stdout[:200],
+                    impact="Logs are sent to remote server for centralized monitoring",
+                    remediation="Ensure remote log server is secure and properly configured",
+                    phase="Phase 6",
+                )
+            )
+        else:
+            findings.append(
+                Finding(
+                    severity=Severity.MEDIUM,
+                    check_id="LOG-013",
+                    title="Remote Logging Not Configured",
+                    description="System is not forwarding logs to external syslog server",
+                    evidence="No remote syslog destination found in rsyslog or syslog-ng config",
+                    impact="Logs may be lost or tampered with if system is compromised. No centralized monitoring.",
+                    remediation="Configure remote logging to forward syslog to external security monitoring system",
+                    phase="Phase 6",
+                )
+            )
 
     return findings
 

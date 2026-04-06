@@ -14,6 +14,7 @@ from security_audit.core import (
     Finding,
     Severity,
     check_root,
+    init_cache,
     run_command,
     set_debug,
 )
@@ -154,6 +155,23 @@ def cli() -> None:
     default=None,
     help="Generate PDF executive report",
 )
+@click.option(
+    "--remediate-script",
+    type=click.Path(),
+    default=None,
+    help="Save remediation script to file",
+)
+@click.option(
+    "--cache",
+    is_flag=True,
+    help="Enable caching of check results",
+)
+@click.option(
+    "--cache-ttl",
+    type=int,
+    default=3600,
+    help="Cache TTL in seconds (default: 3600)",
+)
 def audit(
     output: str | None,
     phases: tuple,
@@ -164,10 +182,15 @@ def audit(
     remediate_only_critical: bool,
     remediate_non_critical: bool,
     pdf: str | None,
+    remediate_script: str | None,
+    cache: bool,
+    cache_ttl: int,
 ) -> None:
     """Run a full security audit."""
     if debug:
         set_debug(True)
+
+    init_cache(enabled=cache, ttl=cache_ttl)
 
     if not check_root():
         console.print(
@@ -316,46 +339,70 @@ def audit(
     if remediate_all:
         console.print("\n[bold yellow]Applying remediations (all)...[/bold yellow]")
         script = generate_remediation_script(all_findings)
-        console.print("\n[dim]Generated remediation script:[/dim]")
-        console.print(f"[dim]{script[:500]}...[/dim]")
-        console.print(
-            "\n[yellow]Note: Automatic remediation is not yet fully implemented.[/yellow]"
-        )
-        console.print(
-            "[dim]Please review the remediation script and apply manually.[/dim]"
-        )
+        if remediate_script:
+            with open(remediate_script, "w", encoding="utf-8") as f:
+                f.write(script)
+            console.print(
+                f"\n[green]Remediation script saved to {remediate_script}[/green]"
+            )
+            console.print("[dim]Run with: sudo bash " + remediate_script + "[/dim]")
+        else:
+            console.print("\n[dim]Generated remediation script:[/dim]")
+            console.print(f"[dim]{script[:500]}...[/dim]")
+            console.print(
+                "\n[yellow]Note: Automatic remediation is not yet fully implemented.[/yellow]"
+            )
+            console.print(
+                "[dim]Use --remediate-script <file> to save full script.[/dim]"
+            )
     elif remediate_only_critical:
         critical = [f for f in all_findings if f.severity == Severity.CRITICAL]
         console.print(
             "\n[bold yellow]Applying remediations (CRITICAL only)...[/bold yellow]"
         )
         script = generate_remediation_script(critical)
-        console.print(
-            f"\n[dim]Generated remediation script for {len(critical)} critical findings:[/dim]"
-        )
-        console.print(f"[dim]{script[:500]}...[/dim]")
-        console.print(
-            "\n[yellow]Note: Automatic remediation is not yet fully implemented.[/yellow]"
-        )
-        console.print(
-            "[dim]Please review the remediation script and apply manually.[/dim]"
-        )
+        if remediate_script:
+            with open(remediate_script, "w", encoding="utf-8") as f:
+                f.write(script)
+            console.print(
+                f"\n[green]Remediation script saved to {remediate_script}[/green]"
+            )
+            console.print("[dim]Run with: sudo bash " + remediate_script + "[/dim]")
+        else:
+            console.print(
+                f"\n[dim]Generated remediation script for {len(critical)} critical findings:[/dim]"
+            )
+            console.print(f"[dim]{script[:500]}...[/dim]")
+            console.print(
+                "\n[yellow]Note: Automatic remediation is not yet fully implemented.[/yellow]"
+            )
+            console.print(
+                "[dim]Use --remediate-script <file> to save full script.[/dim]"
+            )
     elif remediate_non_critical:
         non_critical = [f for f in all_findings if f.severity != Severity.CRITICAL]
         console.print(
             "\n[bold yellow]Applying remediations (non-CRITICAL)...[/bold yellow]"
         )
         script = generate_remediation_script(non_critical)
-        console.print(
-            f"\n[dim]Generated remediation script for {len(non_critical)} non-critical findings:[/dim]"
-        )
-        console.print(f"[dim]{script[:500]}...[/dim]")
-        console.print(
-            "\n[yellow]Note: Automatic remediation is not yet fully implemented.[/yellow]"
-        )
-        console.print(
-            "[dim]Please review the remediation script and apply manually.[/dim]"
-        )
+        if remediate_script:
+            with open(remediate_script, "w", encoding="utf-8") as f:
+                f.write(script)
+            console.print(
+                f"\n[green]Remediation script saved to {remediate_script}[/green]"
+            )
+            console.print("[dim]Run with: sudo bash " + remediate_script + "[/dim]")
+        else:
+            console.print(
+                f"\n[dim]Generated remediation script for {len(non_critical)} non-critical findings:[/dim]"
+            )
+            console.print(f"[dim]{script[:500]}...[/dim]")
+            console.print(
+                "\n[yellow]Note: Automatic remediation is not yet fully implemented.[/yellow]"
+            )
+            console.print(
+                "[dim]Use --remediate-script <file> to save full script.[/dim]"
+            )
 
 
 @cli.command()

@@ -18,6 +18,7 @@ A comprehensive CLI tool for auditing Linux system security posture. It performs
 - Verbose mode for detailed output
 - Debug mode for low-level command output
 - Auto-remediation support (generation of remediation scripts)
+- Check result caching with configurable TTL (default 3600s)
 
 ### What is NOT in scope
 - GUI interface
@@ -38,7 +39,7 @@ security-audit [OPTIONS] COMMAND [ARGS]
 ```bash
 security-audit audit [OPTIONS]
   --output, -o PATH          Output file for markdown report
-  --json, -j PATH            Output file for JSON report
+  --json, -j PATH           Output file for JSON report
   --phases, -p TEXT         Specific phases to run (0-9), can repeat
   --quiet, -q               Suppress detailed output
   --verbose, -v             Show detailed output including descriptions and remediation
@@ -46,7 +47,10 @@ security-audit audit [OPTIONS]
   --remediate-all, -r       Apply automatic remediations for all findings
   --remediate-only-critical Apply automatic remediations for CRITICAL findings only
   --remediate-non-critical  Apply automatic remediations for non-CRITICAL findings
+  --remediate-script PATH   Save remediation script to file
   --pdf, -pdf PATH          Generate PDF executive report
+  --cache                   Enable caching of check results
+  --cache-ttl INTEGER       Cache TTL in seconds (default: 3600)
 ```
 
 #### version command
@@ -220,7 +224,7 @@ from security_audit.core import Finding, Severity, AuditContext
 - logrotate configuration
 - syslog configuration (rsyslog/syslog-ng)
 - Journald persistence
-- Remote logging configuration
+- Remote logging configuration (syslog forwarding to external system)
 
 ### Phase 7: Package & Update Hygiene
 - Pending security updates
