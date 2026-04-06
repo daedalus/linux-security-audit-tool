@@ -324,8 +324,6 @@ def audit(
             "[dim]Please review the remediation script and apply manually.[/dim]"
         )
     elif remediate_only_critical:
-        from security_audit.core import Severity
-
         critical = [f for f in all_findings if f.severity == Severity.CRITICAL]
         console.print(
             f"\n[bold yellow]Applying remediations (CRITICAL only)...[/bold yellow]"
@@ -342,8 +340,6 @@ def audit(
             "[dim]Please review the remediation script and apply manually.[/dim]"
         )
     elif remediate_non_critical:
-        from security_audit.core import Severity
-
         non_critical = [f for f in all_findings if f.severity != Severity.CRITICAL]
         console.print(
             f"\n[bold yellow]Applying remediations (non-CRITICAL)...[/bold yellow]"
