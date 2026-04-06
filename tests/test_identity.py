@@ -16,6 +16,9 @@ from security_audit.phases.identity import (
     check_password_expiry,
     check_locked_accounts_with_shells,
     check_group_modifications,
+    check_pam_faillock,
+    check_session_timeout,
+    check_umask,
     run_identity_checks,
 )
 from security_audit.core import Severity
@@ -179,3 +182,88 @@ class TestRunIdentityChecks:
         mock_run.return_value = ("", "", 1)
         findings = run_identity_checks()
         assert isinstance(findings, list)
+
+
+class TestCheckPamFaillock:
+    """Tests for check_pam_faillock."""
+
+    @patch("security_audit.phases.identity.run_command")
+    def test_faillock_configured(self, mock_run):
+        """Test when pam_faillock is configured."""
+        mock_run.return_value = ("auth required pam_faillock.so preauth", "", 0)
+        findings = check_pam_faillock()
+        assert len(findings) == 0
+
+    @patch("security_audit.phases.identity.run_command")
+    def test_tally2_configured(self, mock_run):
+        """Test when pam_tally2 is configured."""
+        mock_run.side_effect = [
+            ("", "", 1),
+            ("auth required pam_tally2.so", "", 0),
+        ]
+        findings = check_pam_faillock()
+        assert len(findings) == 0
+
+    @patch("security_audit.phases.identity.run_command")
+    def test_no_lockout_configured(self, mock_run):
+        """Test when no account lockout is configured."""
+        mock_run.return_value = ("", "", 1)
+        findings = check_pam_faillock()
+        assert len(findings) == 1
+        assert findings[0].check_id == "IDENT-016"
+        assert findings[0].severity == Severity.MEDIUM
+
+
+class TestCheckSessionTimeout:
+    """Tests for check_session_timeout."""
+
+    @patch("security_audit.phases.identity.run_command")
+    def test_tmout_configured(self, mock_run):
+        """Test when TMOUT is configured."""
+        mock_run.return_value = ("TMOUT=900", "", 0)
+        findings = check_session_timeout()
+        assert len(findings) == 0
+
+    @patch("security_audit.phases.identity.run_command")
+    def test_no_tmout_configured(self, mock_run):
+        """Test when TMOUT is not configured."""
+        mock_run.return_value = ("", "", 1)
+        findings = check_session_timeout()
+        assert len(findings) == 1
+        assert findings[0].check_id == "IDENT-017"
+        assert findings[0].severity == Severity.MEDIUM
+
+
+class TestCheckUmask:
+    """Tests for check_umask."""
+
+    @patch("security_audit.phases.identity.run_command")
+    def test_secure_umask_027(self, mock_run):
+        """Test when umask is set to 027."""
+        mock_run.return_value = ("UMASK 027", "", 0)
+        findings = check_umask()
+        assert len(findings) == 0
+
+    @patch("security_audit.phases.identity.run_command")
+    def test_secure_umask_077(self, mock_run):
+        """Test when umask is set to 077."""
+        mock_run.return_value = ("umask 077", "", 0)
+        findings = check_umask()
+        assert len(findings) == 0
+
+    @patch("security_audit.phases.identity.run_command")
+    def test_insecure_umask_022(self, mock_run):
+        """Test when umask is 022 (insecure)."""
+        mock_run.return_value = ("umask 022", "", 0)
+        findings = check_umask()
+        assert len(findings) == 1
+        assert findings[0].check_id == "IDENT-018"
+        assert findings[0].severity == Severity.MEDIUM
+
+    @patch("security_audit.phases.identity.run_command")
+    def test_no_umask_configured(self, mock_run):
+        """Test when umask is not configured anywhere."""
+        mock_run.return_value = ("", "", 1)
+        findings = check_umask()
+        assert len(findings) == 1
+        assert findings[0].check_id == "IDENT-018"

@@ -14,6 +14,7 @@ from security_audit.phases.filesystem import (
     check_tmp_sensitive_files,
     check_backup_files,
     check_sudoers_integrity,
+    check_mount_options,
     run_filesystem_checks,
 )
 from security_audit.core import Severity
@@ -113,3 +114,48 @@ class TestRunFilesystemChecks:
         mock_run.return_value = ("", "", 1)
         findings = run_filesystem_checks()
         assert isinstance(findings, list)
+
+
+class TestCheckMountOptions:
+    """Tests for check_mount_options."""
+
+    @patch("security_audit.phases.filesystem.run_command")
+    def test_tmp_secure_mount(self, mock_run):
+        """Test when /tmp is mounted with all security options."""
+        mock_run.return_value = (
+            "tmpfs on /tmp type tmpfs (rw,nosuid,nodev,noexec,relatime)",
+            "",
+            0,
+        )
+        findings = check_mount_options()
+        assert not any(f.check_id == "FS-014" and "/tmp" in f.title for f in findings)
+
+    @patch("security_audit.phases.filesystem.run_command")
+    def test_tmp_missing_noexec(self, mock_run):
+        """Test when /tmp is missing the noexec option."""
+        mock_run.return_value = (
+            "tmpfs on /tmp type tmpfs (rw,nosuid,nodev,relatime)",
+            "",
+            0,
+        )
+        findings = check_mount_options()
+        assert any(f.check_id == "FS-014" for f in findings)
+        assert any("noexec" in f.description for f in findings)
+
+    @patch("security_audit.phases.filesystem.run_command")
+    def test_devshm_missing_options(self, mock_run):
+        """Test when /dev/shm is missing security options."""
+        mock_run.return_value = (
+            "tmpfs on /dev/shm type tmpfs (rw,relatime)",
+            "",
+            0,
+        )
+        findings = check_mount_options()
+        assert any(f.check_id == "FS-014" and "/dev/shm" in f.title for f in findings)
+
+    @patch("security_audit.phases.filesystem.run_command")
+    def test_mount_command_fails(self, mock_run):
+        """Test when mount command fails."""
+        mock_run.return_value = ("", "", 1)
+        findings = check_mount_options()
+        assert len(findings) == 0
