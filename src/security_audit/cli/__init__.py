@@ -16,6 +16,7 @@ from security_audit.core import (
     set_debug,
     run_command,
 )
+from security_audit import __version__
 from security_audit.phases import (
     calculate_security_score,
     gather_context,
@@ -175,7 +176,7 @@ def audit(
         console.print("[dim]Some checks may fail without root privileges.[/dim]")
         console.print()
 
-    console.print("[bold blue]Linux Security Audit Tool v0.1.0[/bold blue]")
+    console.print(f"[bold blue]Linux Security Audit Tool v{__version__}[/bold blue]")
     console.print()
 
     all_findings = []
@@ -360,7 +361,7 @@ def audit(
 @cli.command()
 def version() -> None:
     """Show version information."""
-    console.print("Linux Security Audit Tool v0.1.0")
+    console.print(f"Linux Security Audit Tool v{__version__}")
 
 
 def main() -> int:
