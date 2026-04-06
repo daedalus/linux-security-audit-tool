@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "linux-security-audit-tool"
-version = "0.1.1"
+version = "0.1.2"
 description = "Comprehensive Linux security auditing and hardening tool"
 readme = "README.md"
 requires-python = ">=3.11"
