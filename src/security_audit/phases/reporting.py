@@ -2,6 +2,8 @@
 
 from datetime import datetime
 
+from weasyprint import HTML
+
 from ..core import AuditContext, Finding, Severity
 
 
@@ -9,13 +11,6 @@ def generate_pdf_report(
     context: AuditContext, findings: list[Finding], output_path: str
 ) -> None:
     """Generate a PDF executive report."""
-    try:
-        from weasyprint import HTML
-    except ImportError:
-        raise ImportError(
-            "weasyprint is required for PDF generation. Install with: pip install weasyprint"
-        )
-
     classified = classify_severity(findings)
     score = calculate_security_score(findings)
 
