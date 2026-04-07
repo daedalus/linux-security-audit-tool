@@ -337,7 +337,8 @@ def check_open_relay() -> list[Finding]:
 
     stdout, _, rc = run_command("ss -tlnp 2>/dev/null")
     if rc == 0 and stdout:
-        if ":25 " in stdout or ":25/" in stdout:
+        listening_on_25 = ":25 " in stdout or ":25/" in stdout
+        if listening_on_25:
             for service in mail_services:
                 if service in stdout.lower():
                     findings.append(
