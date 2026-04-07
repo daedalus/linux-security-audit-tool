@@ -9,9 +9,6 @@ from security_audit.phases.network import (
     check_unnecessary_services,
     check_ufw_firewall,
     check_firewalld,
-    check_ipv6_hardening,
-    check_icmp_broadcast,
-    check_source_routing,
     check_open_proxy,
     check_open_relay,
     check_unwanted_network_services,
@@ -56,12 +53,9 @@ class TestCheckSysctlNetworkHardening:
     def test_all_params_hardened(self, mock_run):
         """Test when network params are properly hardened."""
         mock_run.side_effect = [
-            ("0", "", 0),
             ("1", "", 0),
             ("0", "", 0),
             ("0", "", 0),
-            ("0", "", 0),
-            ("1", "", 0),
             ("1", "", 0),
         ]
         findings = check_sysctl_network_hardening()
@@ -176,48 +170,6 @@ class TestCheckUnnecessaryServices:
         assert any(f.check_id == "NET-005" for f in findings)
 
 
-class TestCheckIPv6Hardening:
-    """Tests for check_ipv6_hardening."""
-
-    @patch("security_audit.phases.network.run_command")
-    def test_ipv6_accept_ra_enabled(self, mock_run):
-        """Test when IPv6 accept_ra is enabled."""
-        mock_run.side_effect = [
-            ("1", "", 0),
-            ("1", "", 0),
-            ("1", "", 0),
-            ("1", "", 0),
-            ("1", "", 0),
-            ("1", "", 0),
-        ]
-        findings = check_ipv6_hardening()
-        assert len(findings) >= 1
-
-
-class TestCheckICMPBroadcast:
-    """Tests for check_icmp_broadcast."""
-
-    @patch("security_audit.phases.network.run_command")
-    def test_icmp_broadcast_disabled(self, mock_run):
-        """Test when ICMP broadcast is not ignored."""
-        mock_run.return_value = ("0", "", 0)
-        findings = check_icmp_broadcast()
-        assert len(findings) == 1
-        assert findings[0].check_id == "NET-010"
-
-
-class TestCheckSourceRouting:
-    """Tests for check_source_routing."""
-
-    @patch("security_audit.phases.network.run_command")
-    def test_source_routing_enabled(self, mock_run):
-        """Test when source routing is enabled."""
-        mock_run.return_value = ("1", "", 0)
-        findings = check_source_routing()
-        assert len(findings) == 1
-        assert findings[0].check_id == "NET-011"
-
-
 class TestCheckNtpSync:
     """Tests for check_ntp_sync."""
 
@@ -302,9 +254,9 @@ class TestCheckFtpAnonymousAccess:
     def test_pure_ftpd_anonymous_allowed(self, mock_run):
         """Test when pure-ftpd has NoAnonymous=no."""
         mock_run.side_effect = [
-            ("", "", 1),   # vsftpd.conf not found
-            ("", "", 1),   # proftpd /etc/proftpd/proftpd.conf not found
-            ("", "", 1),   # proftpd /etc/proftpd.conf not found
+            ("", "", 1),  # vsftpd.conf not found
+            ("", "", 1),  # proftpd /etc/proftpd/proftpd.conf not found
+            ("", "", 1),  # proftpd /etc/proftpd.conf not found
             ("no\n", "", 0),  # /etc/pure-ftpd/conf/NoAnonymous
             ("/usr/sbin/pure-ftpd", "", 0),  # which pure-ftpd
         ]
@@ -317,9 +269,9 @@ class TestCheckFtpAnonymousAccess:
     def test_pure_ftpd_anonymous_disabled(self, mock_run):
         """Test when pure-ftpd NoAnonymous=yes (anonymous disabled)."""
         mock_run.side_effect = [
-            ("", "", 1),   # vsftpd.conf not found
-            ("", "", 1),   # proftpd not found
-            ("", "", 1),   # proftpd alt not found
+            ("", "", 1),  # vsftpd.conf not found
+            ("", "", 1),  # proftpd not found
+            ("", "", 1),  # proftpd alt not found
             ("yes\n", "", 0),  # /etc/pure-ftpd/conf/NoAnonymous
         ]
         findings = check_ftp_anonymous_access()
@@ -446,7 +398,11 @@ class TestCheckApacheInsecureConfig:
         """Test when Apache has Options Indexes enabled."""
         mock_run.side_effect = [
             ("/etc/apache2/apache2.conf", "", 0),  # find config files
-            ("<Directory /var/www/html>\n    Options Indexes FollowSymLinks\n</Directory>", "", 0),
+            (
+                "<Directory /var/www/html>\n    Options Indexes FollowSymLinks\n</Directory>",
+                "",
+                0,
+            ),
         ]
         findings = check_apache_insecure_config()
         assert len(findings) == 1
@@ -458,7 +414,11 @@ class TestCheckApacheInsecureConfig:
         """Test when Apache has Options -Indexes (directory listing disabled)."""
         mock_run.side_effect = [
             ("/etc/apache2/apache2.conf", "", 0),
-            ("<Directory /var/www/html>\n    Options -Indexes FollowSymLinks\n</Directory>", "", 0),
+            (
+                "<Directory /var/www/html>\n    Options -Indexes FollowSymLinks\n</Directory>",
+                "",
+                0,
+            ),
         ]
         findings = check_apache_insecure_config()
         assert len(findings) == 0

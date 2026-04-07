@@ -82,17 +82,14 @@ def check_firewall_status() -> list[Finding]:
 
 @cached_check("check_sysctl_network_hardening")
 def check_sysctl_network_hardening() -> list[Finding]:
-    """Check sysctl network hardening parameters."""
+    """Check sysctl network hardening parameters (Phase 2 specific)."""
     findings = []
 
     params = {
-        "net.ipv4.ip_forward": "0",
         "net.ipv4.conf.all.rp_filter": "1",
         "net.ipv4.conf.all.accept_redirects": "0",
         "net.ipv4.conf.all.send_redirects": "0",
-        "net.ipv4.conf.all.accept_source_route": "0",
         "net.ipv4.conf.all.log_martians": "1",
-        "net.ipv4.tcp_syncookies": "1",
     }
 
     for param, expected in params.items():
@@ -216,91 +213,6 @@ def check_firewalld() -> list[Finding]:
     return findings
 
 
-@cached_check("check_ipv6_hardening")
-def check_ipv6_hardening() -> list[Finding]:
-    """Check IPv6 hardening parameters."""
-    findings = []
-
-    params = {
-        "net.ipv6.conf.all.accept_ra": "0",
-        "net.ipv6.conf.default.accept_ra": "0",
-        "net.ipv6.conf.all.accept_redirects": "0",
-        "net.ipv6.conf.default.accept_redirects": "0",
-        "net.ipv6.conf.all.accept_source_route": "0",
-        "net.ipv6.conf.default.accept_source_route": "0",
-    }
-
-    for param, expected in params.items():
-        stdout, _, rc = run_command(f"sysctl -n {param} 2>/dev/null")
-        if rc == 0:
-            actual = stdout.strip()
-            if actual != expected:
-                findings.append(
-                    Finding(
-                        severity=Severity.LOW,
-                        check_id="NET-009",
-                        title=f"Suboptimal IPv6 {param}",
-                        description=f"Current value: {actual}, expected: {expected}",
-                        evidence=f"{param} = {actual}",
-                        impact="IPv6 security hardening gap",
-                        remediation=f"Set {param} = {expected}",
-                        phase="Phase 2",
-                    )
-                )
-
-    return findings
-
-
-@cached_check("check_icmp_broadcast")
-def check_icmp_broadcast() -> list[Finding]:
-    """Check ICMP broadcast protection."""
-    findings = []
-
-    stdout, _, rc = run_command("sysctl -n net.ipv4.icmp_ignore_broadcasts 2>/dev/null")
-    if rc == 0:
-        if stdout.strip() != "1":
-            findings.append(
-                Finding(
-                    severity=Severity.MEDIUM,
-                    check_id="NET-010",
-                    title="ICMP Broadcast Not Ignored",
-                    description=f"Current value: {stdout.strip()}, expected: 1",
-                    evidence=f"net.ipv4.icmp_ignore_broadcasts = {stdout.strip()}",
-                    impact="System vulnerable to broadcast ping attacks",
-                    remediation="Set net.ipv4.icmp_ignore_broadcasts = 1",
-                    phase="Phase 2",
-                )
-            )
-
-    return findings
-
-
-@cached_check("check_source_routing")
-def check_source_routing() -> list[Finding]:
-    """Check source packet routing."""
-    findings = []
-
-    stdout, _, rc = run_command(
-        "sysctl -n net.ipv4.conf.all.accept_source_route 2>/dev/null"
-    )
-    if rc == 0:
-        if stdout.strip() != "0":
-            findings.append(
-                Finding(
-                    severity=Severity.MEDIUM,
-                    check_id="NET-011",
-                    title="Source Routing Enabled",
-                    description=f"Current value: {stdout.strip()}, expected: 0",
-                    evidence=f"net.ipv4.conf.all.accept_source_route = {stdout.strip()}",
-                    impact="Allowing source routing enables IP spoofing attacks",
-                    remediation="Set net.ipv4.conf.all.accept_source_route = 0",
-                    phase="Phase 2",
-                )
-            )
-
-    return findings
-
-
 @cached_check("check_open_proxy")
 def check_open_proxy() -> list[Finding]:
     """Check for open proxy services."""
@@ -392,9 +304,7 @@ def check_ntp_sync() -> list[Finding]:
 
     ntp_services = ["systemd-timesyncd", "chronyd", "ntp", "ntpd"]
     for service in ntp_services:
-        stdout, _, rc = run_command(
-            f"systemctl is-active {service} 2>/dev/null"
-        )
+        stdout, _, rc = run_command(f"systemctl is-active {service} 2>/dev/null")
         if rc == 0 and stdout.strip() == "active":
             return findings
 
@@ -499,7 +409,7 @@ def check_nfs_world_accessible_shares() -> list[Finding]:
         parts = stripped.split()
         if len(parts) >= 2:
             export_path = parts[0]
-            clients_and_opts = stripped[len(export_path):].strip()
+            clients_and_opts = stripped[len(export_path) :].strip()
 
             # Check for world-accessible exports (wildcard host)
             if re.search(r"(?:^|\s)\*(?:\s|\(|$)", clients_and_opts):
@@ -532,7 +442,9 @@ def check_nfs_world_accessible_shares() -> list[Finding]:
                 )
 
             # Check for insecure option (allows non-privileged source ports)
-            if re.search(r"(?:^|,|\()\s*insecure\s*(?:,|\)|$)", clients_and_opts.lower()):
+            if re.search(
+                r"(?:^|,|\()\s*insecure\s*(?:,|\)|$)", clients_and_opts.lower()
+            ):
                 findings.append(
                     Finding(
                         severity=Severity.MEDIUM,
@@ -570,7 +482,11 @@ def check_samba_guest_access() -> list[Finding]:
 
         if stripped.startswith("["):
             # Process previous share if any
-            if current_share and current_share.lower() not in ("[global]", "[printers]", "[homes]"):
+            if current_share and current_share.lower() not in (
+                "[global]",
+                "[printers]",
+                "[homes]",
+            ):
                 _check_samba_share(current_share, share_options, findings)
             current_share = stripped
             share_options = {}
@@ -585,7 +501,11 @@ def check_samba_guest_access() -> list[Finding]:
                 share_options[key] = val
 
     # Process the last share
-    if current_share and current_share.lower() not in ("[global]", "[printers]", "[homes]"):
+    if current_share and current_share.lower() not in (
+        "[global]",
+        "[printers]",
+        "[homes]",
+    ):
         _check_samba_share(current_share, share_options, findings)
 
     # Check for global insecure settings
@@ -705,9 +625,14 @@ def check_apache_insecure_config() -> list[Finding]:
                 if in_location and not has_auth:
                     # Only flag if it requires authentication context (has Require or auth directives)
                     block_text = "\n".join(block_lines)
-                    if re.search(r"\bRequire\b", block_text, re.IGNORECASE) is None and \
-                       re.search(r"\bAuthType\b", block_text, re.IGNORECASE) is None and \
-                       re.search(r"\bOrder\s+deny,allow\b", block_text, re.IGNORECASE):
+                    if (
+                        re.search(r"\bRequire\b", block_text, re.IGNORECASE) is None
+                        and re.search(r"\bAuthType\b", block_text, re.IGNORECASE)
+                        is None
+                        and re.search(
+                            r"\bOrder\s+deny,allow\b", block_text, re.IGNORECASE
+                        )
+                    ):
                         no_auth_files.append(conf_file)
                 in_location = False
                 block_lines = []
@@ -740,9 +665,7 @@ def check_nginx_insecure_config() -> list[Finding]:
     findings: list[Finding] = []
 
     # Locate Nginx config files
-    stdout, _, rc = run_command(
-        "find /etc/nginx -name '*.conf' -type f 2>/dev/null"
-    )
+    stdout, _, rc = run_command("find /etc/nginx -name '*.conf' -type f 2>/dev/null")
     if rc != 0 or not stdout.strip():
         return findings
 
@@ -790,9 +713,6 @@ def run_network_checks() -> list[Finding]:
     findings.extend(check_unnecessary_services())
     findings.extend(check_ufw_firewall())
     findings.extend(check_firewalld())
-    findings.extend(check_ipv6_hardening())
-    findings.extend(check_icmp_broadcast())
-    findings.extend(check_source_routing())
     findings.extend(check_open_proxy())
     findings.extend(check_open_relay())
     findings.extend(check_unwanted_network_services())

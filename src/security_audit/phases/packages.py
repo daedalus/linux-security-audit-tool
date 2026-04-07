@@ -66,6 +66,65 @@ def check_last_update() -> list[Finding]:
     return findings
 
 
+def _get_days_since_last_update() -> int | None:
+    """Get days since system was last fully updated (apt/yum upgrade)."""
+    import time
+
+    for cmd, cache_file in [
+        ("ls -la /var/log/dpkg.log 2>/dev/null", "/var/log/dpkg.log"),
+        ("ls -la /var/log/yum.log 2>/dev/null", "/var/log/yum.log"),
+        ("ls -la /var/log/apt/term.log 2>/dev/null", "/var/log/apt/term.log"),
+    ]:
+        stdout, _, rc = run_command(cmd)
+        if rc == 0 and stdout:
+            parts = stdout.split()
+            if len(parts) >= 6:
+                date_str = " ".join(parts[5:8])
+                try:
+                    import datetime
+
+                    log_time = None
+                    for fmt in ["%Y-%m-%d %H:%M", "%Y-%d-%m %H:%M"]:
+                        try:
+                            log_time = datetime.datetime.strptime(date_str.strip(), fmt)
+                            break
+                        except ValueError:
+                            continue
+                    if log_time:
+                        age = (datetime.datetime.now() - log_time).days
+                        return age
+                except Exception:
+                    pass
+    return None
+
+
+@cached_check("check_last_full_update")
+def check_last_full_update() -> list[Finding]:
+    """Check when system was last fully updated with security patches."""
+    findings = []
+
+    days = _get_days_since_last_update()
+    if days is not None and days > 30:
+        findings.append(
+            Finding(
+                severity=Severity.HIGH
+                if days > 90
+                else Severity.MEDIUM
+                if days > 60
+                else Severity.LOW,
+                check_id="PKG-006",
+                title="System Not Updated Recently",
+                description=f"System last fully updated: {days} days ago",
+                evidence=f"Last update: {days} days ago",
+                impact="System may be missing security patches",
+                remediation="Run: apt update && apt upgrade (Debian) or yum update (RHEL)",
+                phase="Phase 7",
+            )
+        )
+
+    return findings
+
+
 @cached_check("check_untrusted_repos")
 def check_untrusted_repos() -> list[Finding]:
     """Check for untrusted package repositories."""
@@ -150,6 +209,7 @@ def run_package_checks() -> list[Finding]:
 
     findings.extend(check_pending_updates())
     findings.extend(check_last_update())
+    findings.extend(check_last_full_update())
     findings.extend(check_untrusted_repos())
     findings.extend(check_unnecessary_packages())
     findings.extend(check_deprecated_packages())
