@@ -1,6 +1,6 @@
 """Linux Security Audit Tool - Comprehensive security auditing and hardening."""
 
-__version__ = "0.1.6"
+__version__ = "0.1.7"
 
 from typing import TYPE_CHECKING
 
