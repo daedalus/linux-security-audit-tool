@@ -185,6 +185,7 @@ def check_unnecessary_network_services() -> list[Finding]:
         "cups",
         "avahi-daemon",
         "bluetooth",
+        "ypbind",
     ]
 
     for service in dangerous_services:

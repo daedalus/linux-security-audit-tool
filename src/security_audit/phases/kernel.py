@@ -273,6 +273,31 @@ def check_vm_swappiness() -> list[Finding]:
     return findings
 
 
+@cached_check("check_panic_on_oops")
+def check_panic_on_oops() -> list[Finding]:
+    """Check kernel panic on oops setting."""
+    findings: list[Finding] = []
+
+    stdout, _, rc = run_command("sysctl -n kernel.panic_on_oops 2>/dev/null")
+    if rc == 0:
+        val = int(stdout.strip() or 0)
+        if val == 0:
+            findings.append(
+                Finding(
+                    severity=Severity.LOW,
+                    check_id="KERN-012",
+                    title="Kernel Panic on Oops Not Enabled",
+                    description=f"Current value: {val}, recommended: 1",
+                    evidence=f"kernel.panic_on_oops = {val}",
+                    impact="System may continue running after a kernel panic",
+                    remediation="Set kernel.panic_on_oops = 1",
+                    phase="Phase 5",
+                )
+            )
+
+    return findings
+
+
 @cached_check("check_user_namespaces")
 def check_user_namespaces() -> list[Finding]:
     """Check user namespace restrictions."""
@@ -286,7 +311,7 @@ def check_user_namespaces() -> list[Finding]:
             findings.append(
                 Finding(
                     severity=Severity.LOW,
-                    check_id="KERN-012",
+                    check_id="KERN-013",
                     title="User Namespaces Unrestricted",
                     description=f"Current value: {stdout.strip()}, recommended: 0",
                     evidence=f"kernel.unprivileged_userns_clone = {stdout.strip()}",
@@ -302,7 +327,7 @@ def check_user_namespaces() -> list[Finding]:
 @cached_check("check_apparmor_sshd_enforce")
 def check_apparmor_sshd_enforce() -> list[Finding]:
     """Check if AppArmor is enforcing for sshd."""
-    findings = []
+    findings: list[Finding] = []
 
     stdout, _, rc = run_command("aa-status --enabled 2>/dev/null")
     if rc != 0:

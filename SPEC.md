@@ -150,7 +150,7 @@ from security_audit.core import Finding, Severity, AuditContext
 - Uptime, virtualization detection
 - System role (server/workstation/container)
 
-### Phase 1: Identity & Access Control
+### Phase 1: Identity & Access Control (17 checks)
 - UID 0 accounts
 - System accounts with shells
 - Empty passwords
@@ -167,8 +167,9 @@ from security_audit.core import Finding, Severity, AuditContext
 - PAM account lockout policy (pam_faillock / pam_tally2)
 - Idle session timeout (TMOUT)
 - Default umask (should be 027 or more restrictive)
+- SSH X11Forwarding configuration
 
-### Phase 2: Network Exposure
+### Phase 2: Network Exposure (15 checks)
 - Listening services (ss/netstat)
 - Firewall status (iptables/nftables/ufw/firewalld)
 - UFW firewall status and rules
@@ -179,8 +180,15 @@ from security_audit.core import Finding, Severity, AuditContext
 - ICMP broadcast protection
 - Source packet routing
 - NTP time synchronization (systemd-timesyncd / chronyd / ntpd)
+- Open proxy detection
+- Open relay detection
+- FTP anonymous access
+- NFS world-accessible shares
+- Samba guest access
+- Apache insecure configuration
+- Nginx insecure configuration
 
-### Phase 3: File System & Permissions
+### Phase 3: File System & Permissions (13 checks)
 - SUID/SGID binaries
 - World-writable files/directories
 - World-writable directories without sticky bit
@@ -192,20 +200,22 @@ from security_audit.core import Finding, Severity, AuditContext
 - Backup files detection (.bak, .old, .swp)
 - Sudoers file integrity
 - Security mount options (/tmp, /var/tmp, /dev/shm, /home)
+- at jobs permissions (/etc/at.allow, /etc/at.deny)
 
-### Phase 4: Process & Service Posture
+### Phase 4: Process & Service Posture (11 checks)
 - Running services
 - Enabled services at boot
 - Docker socket
 - AppArmor status
 - SELinux status
-- Unnecessary network services (telnet, rsh, finger, cups, etc.)
+- Unnecessary network services (telnet, rsh, finger, cups, avahi, bluetooth, ypbind, etc.)
 - Systemd timers
 - Seccomp profile status
 - Service file permissions
 - SysV init scripts
+- rkhunter installation and configuration
 
-### Phase 5: Kernel & OS Hardening
+### Phase 5: Kernel & OS Hardening (25 checks)
 - ASLR (address space layout randomization)
 - dmesg_restrict
 - kptr_restrict
@@ -216,6 +226,7 @@ from security_audit.core import Finding, Severity, AuditContext
 - SysRq key status
 - ICMP broadcast ignore
 - VM swappiness
+- Kernel panic on oops
 - User namespace restrictions
 - AppArmor sshd profile enforcement
 - IP forwarding (should be disabled)
@@ -230,7 +241,7 @@ from security_audit.core import Finding, Severity, AuditContext
 - TPM attestation
 - SecureBoot status
 
-### Phase 6: Logging & Monitoring
+### Phase 6: Logging & Monitoring (11 checks)
 - auditd status
 - Audit rules
 - Audit rules for sensitive files (/etc/passwd, /etc/shadow)
@@ -243,14 +254,15 @@ from security_audit.core import Finding, Severity, AuditContext
 - Journald persistence
 - Remote logging configuration (syslog forwarding to external system)
 
-### Phase 7: Package & Update Hygiene
+### Phase 7: Package & Update Hygiene (6 checks)
 - Pending security updates
 - Last package update time
+- Last full system update
 - Untrusted repositories
 - Unnecessary packages
 - Deprecated packages
 
-### Phase 8: Cryptographic Posture
+### Phase 8: Cryptographic Posture (10 checks)
 - SSH host key strength (RSA, DSA, ECDSA, Ed25519)
 - SSH key exchange algorithms
 - SSH ciphers and MACs

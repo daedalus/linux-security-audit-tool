@@ -14,9 +14,9 @@ from .process import run_process_checks
 from .reporting import (
     calculate_security_score,
     classify_severity,
+    generate_json_report,
     generate_markdown_report,
     generate_pdf_report,
-    generate_json_report,
     generate_remediation_script,
     run_reporting,
 )

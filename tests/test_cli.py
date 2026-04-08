@@ -1,11 +1,12 @@
 """Tests for the CLI module."""
 
-import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
+
 from click.testing import CliRunner
-from security_audit.cli import cli, version, print_finding, print_summary
-from security_audit.core import Finding, Severity
+
 from security_audit import __version__
+from security_audit.cli import cli, print_finding, print_summary, version
+from security_audit.core import Finding, Severity
 
 
 class TestCLI:

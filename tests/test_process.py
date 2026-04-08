@@ -1,22 +1,20 @@
 """Tests for the process phase."""
 
-import pytest
 from unittest.mock import patch
+
 from security_audit.phases.process import (
-    check_running_services,
-    check_enabled_services,
-    check_docker_socket,
     check_apparmor_status,
-    check_selinux_status,
-    check_unnecessary_network_services,
-    check_systemd_timers,
-    check_seccomp_status,
-    check_service_file_permissions,
-    check_sysv_init_scripts,
+    check_docker_socket,
     check_rkhunter_installation,
+    check_running_services,
+    check_seccomp_status,
+    check_selinux_status,
+    check_service_file_permissions,
+    check_systemd_timers,
+    check_sysv_init_scripts,
+    check_unnecessary_network_services,
     run_process_checks,
 )
-from security_audit.core import Severity
 
 
 class TestCheckRunningServices:

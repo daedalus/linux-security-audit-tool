@@ -182,7 +182,7 @@ def cli() -> None:
 )
 def audit(
     output: str | None,
-    phases: tuple,
+    phases: tuple[str, ...],
     quiet: bool,
     verbose: bool,
     debug: bool,
@@ -335,10 +335,13 @@ def audit(
     console.print()
     print_summary(all_findings)
 
+    if context is None:
+        context = gather_context()
+
     if output:
         report = generate_markdown_report(context, all_findings)
-        with open(output, "w", encoding="utf-8") as f:
-            f.write(report)
+        with open(output, "w", encoding="utf-8") as out_file:
+            out_file.write(report)
         console.print(f"\n[green]Report saved to {output}[/green]")
 
     if pdf:
@@ -347,16 +350,16 @@ def audit(
 
     if json:
         json_report = generate_json_report(context, all_findings)
-        with open(json, "w", encoding="utf-8") as f:
-            f.write(json_report)
+        with open(json, "w", encoding="utf-8") as out_file:
+            out_file.write(json_report)
         console.print(f"\n[green]JSON report saved to {json}[/green]")
 
     if remediate_all:
         console.print("\n[bold yellow]Applying remediations (all)...[/bold yellow]")
         script = generate_remediation_script(all_findings)
         if remediate_script:
-            with open(remediate_script, "w", encoding="utf-8") as f:
-                f.write(script)
+            with open(remediate_script, "w", encoding="utf-8") as out_file:
+                out_file.write(script)
             console.print(
                 f"\n[green]Remediation script saved to {remediate_script}[/green]"
             )
@@ -377,8 +380,8 @@ def audit(
         )
         script = generate_remediation_script(critical)
         if remediate_script:
-            with open(remediate_script, "w", encoding="utf-8") as f:
-                f.write(script)
+            with open(remediate_script, "w", encoding="utf-8") as out_file:
+                out_file.write(script)
             console.print(
                 f"\n[green]Remediation script saved to {remediate_script}[/green]"
             )
@@ -401,8 +404,8 @@ def audit(
         )
         script = generate_remediation_script(non_critical)
         if remediate_script:
-            with open(remediate_script, "w", encoding="utf-8") as f:
-                f.write(script)
+            with open(remediate_script, "w", encoding="utf-8") as out_file:
+                out_file.write(script)
             console.print(
                 f"\n[green]Remediation script saved to {remediate_script}[/green]"
             )

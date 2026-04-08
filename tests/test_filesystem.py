@@ -1,23 +1,16 @@
 """Tests for the filesystem phase."""
 
-import pytest
 from unittest.mock import patch
+
 from security_audit.phases.filesystem import (
-    check_suid_binaries,
-    check_sgid_binaries,
-    check_world_writable_files,
-    check_world_writable_dirs,
-    check_unowned_files,
     check_critical_file_permissions,
     check_cron_jobs,
-    check_ssh_private_key_permissions,
-    check_tmp_sensitive_files,
-    check_backup_files,
-    check_sudoers_integrity,
     check_mount_options,
+    check_sgid_binaries,
+    check_suid_binaries,
+    check_world_writable_files,
     run_filesystem_checks,
 )
-from security_audit.core import Severity
 
 
 class TestCheckSUIDBinaries:

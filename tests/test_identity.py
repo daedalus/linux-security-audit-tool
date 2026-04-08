@@ -1,27 +1,25 @@
 """Tests for the identity phase."""
 
-import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
+
+from security_audit.core import Severity
 from security_audit.phases.identity import (
-    check_uid_zero_accounts,
-    check_system_accounts_with_shells,
-    check_passwordless_accounts,
+    check_group_modifications,
+    check_locked_accounts_with_shells,
+    check_pam_faillock,
+    check_password_policy,
+    check_privileged_groups,
+    check_session_timeout,
+    check_ssh_password_auth,
+    check_ssh_root_login,
     check_sudo_nopasswd,
     check_sudo_wildcard_abuse,
-    check_privileged_groups,
-    check_ssh_root_login,
-    check_ssh_password_auth,
-    check_unauthorized_ssh_keys,
-    check_password_policy,
-    check_password_expiry,
-    check_locked_accounts_with_shells,
-    check_group_modifications,
-    check_pam_faillock,
-    check_session_timeout,
+    check_system_accounts_with_shells,
+    check_uid_zero_accounts,
     check_umask,
+    check_unauthorized_ssh_keys,
     run_identity_checks,
 )
-from security_audit.core import Severity
 
 
 class TestCheckUidZeroAccounts:

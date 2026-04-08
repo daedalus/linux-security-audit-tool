@@ -1,26 +1,26 @@
 """Tests for the network phase."""
 
-import pytest
 from unittest.mock import patch
+
+from security_audit.core import Severity
 from security_audit.phases.network import (
-    check_listening_services,
+    check_apache_insecure_config,
     check_firewall_status,
-    check_sysctl_network_hardening,
-    check_unnecessary_services,
-    check_ufw_firewall,
     check_firewalld,
+    check_ftp_anonymous_access,
+    check_listening_services,
+    check_nfs_world_accessible_shares,
+    check_nginx_insecure_config,
+    check_ntp_sync,
     check_open_proxy,
     check_open_relay,
-    check_unwanted_network_services,
-    check_ntp_sync,
-    check_ftp_anonymous_access,
-    check_nfs_world_accessible_shares,
     check_samba_guest_access,
-    check_apache_insecure_config,
-    check_nginx_insecure_config,
+    check_sysctl_network_hardening,
+    check_ufw_firewall,
+    check_unnecessary_services,
+    check_unwanted_network_services,
     run_network_checks,
 )
-from security_audit.core import Severity, Finding
 
 
 class TestCheckListeningServices:
@@ -57,6 +57,8 @@ class TestCheckSysctlNetworkHardening:
             ("0", "", 0),
             ("0", "", 0),
             ("1", "", 0),
+            ("0", "", 0),
+            ("0", "", 0),
         ]
         findings = check_sysctl_network_hardening()
         assert len(findings) == 0

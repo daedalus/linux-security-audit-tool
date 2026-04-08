@@ -94,7 +94,7 @@ class AuditContext:
     virtualization: str = ""
     is_container: bool = False
     is_server: bool = True
-    findings: list = field(default_factory=list)
+    findings: list[Finding] = field(default_factory=list)
 
 
 def run_command(

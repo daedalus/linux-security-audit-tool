@@ -1,35 +1,24 @@
 """Tests for the kernel phase."""
 
-import pytest
 from unittest.mock import patch
+
 from security_audit.phases.kernel import (
     check_aslr,
-    check_dmesg_restrict,
-    check_kptr_restrict,
-    check_ptrace_scope,
-    check_suid_dumpable,
-    check_protected_symlinks,
-    check_protected_hardlinks,
-    check_kernel_module_blacklist,
-    check_sysrq_status,
-    check_vm_swappiness,
-    check_user_namespaces,
-    check_apparmor_sshd_enforce,
-    check_ip_forwarding,
-    check_rp_filter,
-    check_icmp_redirects,
-    check_tcp_syncookies,
-    check_source_routing,
-    check_log_martians,
-    check_icmp_broadcasts,
-    check_selinux_apparmor_enforcing,
-    check_grub_password,
     check_fde,
-    check_tpm_attestation,
+    check_grub_password,
+    check_icmp_redirects,
+    check_ip_forwarding,
+    check_kptr_restrict,
+    check_rp_filter,
     check_secureboot,
+    check_selinux_apparmor_enforcing,
+    check_source_routing,
+    check_sysrq_status,
+    check_tcp_syncookies,
+    check_tpm_attestation,
+    check_vm_swappiness,
     run_kernel_checks,
 )
-from security_audit.core import Severity
 
 
 class TestCheckASLR:

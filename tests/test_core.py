@@ -1,8 +1,8 @@
 """Tests for the core module."""
 
-import pytest
 from unittest.mock import patch
-from security_audit.core import Severity, Finding, AuditContext, run_command, check_root
+
+from security_audit.core import AuditContext, Finding, Severity, check_root, run_command
 
 
 class TestSeverity:

@@ -1,22 +1,14 @@
 """Tests for the logging phase."""
 
-import pytest
 from unittest.mock import patch
+
 from security_audit.phases.logging import (
-    check_auditd_status,
     check_audit_rules,
+    check_auditd_status,
     check_auth_log_permissions,
-    check_failed_logins,
-    check_logrotate_config,
-    check_syslog_config,
     check_journald_persistence,
-    check_audit_sensitive_files,
-    check_log_ownership,
-    check_failed_ssh_attempts,
-    check_remote_logging,
     run_logging_checks,
 )
-from security_audit.core import Severity
 
 
 class TestCheckAuditdStatus:

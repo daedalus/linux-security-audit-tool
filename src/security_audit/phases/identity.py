@@ -412,7 +412,7 @@ def check_group_modifications() -> list[Finding]:
 @cached_check("check_pam_faillock")
 def check_pam_faillock() -> list[Finding]:
     """Check PAM account lockout configuration (pam_faillock or pam_tally2)."""
-    findings = []
+    findings: list[Finding] = []
 
     stdout, _, rc = run_command("grep -r 'pam_faillock' /etc/pam.d/ 2>/dev/null")
     if rc == 0 and stdout and stdout.strip():
@@ -441,7 +441,7 @@ def check_pam_faillock() -> list[Finding]:
 @cached_check("check_session_timeout")
 def check_session_timeout() -> list[Finding]:
     """Check if an idle session timeout (TMOUT) is configured."""
-    findings = []
+    findings: list[Finding] = []
 
     configs = [
         "/etc/profile",
@@ -474,7 +474,7 @@ def check_session_timeout() -> list[Finding]:
 @cached_check("check_umask")
 def check_umask() -> list[Finding]:
     """Check if a secure default umask (027 or 077) is configured."""
-    findings = []
+    findings: list[Finding] = []
 
     configs = [
         "/etc/login.defs",
@@ -515,6 +515,32 @@ def check_umask() -> list[Finding]:
     return findings
 
 
+@cached_check("check_ssh_x11_forwarding")
+def check_ssh_x11_forwarding() -> list[Finding]:
+    """Check if SSH X11 forwarding is enabled."""
+    findings: list[Finding] = []
+
+    paths = ["/etc/ssh/sshd_config", "/etc/ssh/sshd_config.d/*.conf"]
+    stdout, _, rc = run_command(f"grep -r '^X11Forwarding' {paths} 2>/dev/null")
+    if rc != 0 or not stdout.strip():
+        stdout, _, rc = run_command(f"grep -r '^X11Forwarding no' {paths} 2>/dev/null")
+        if rc == 0:
+            return findings
+        findings.append(
+            Finding(
+                severity=Severity.LOW,
+                check_id="IDENT-019",
+                title="SSH X11Forwarding Not Explicitly Disabled",
+                description="X11Forwarding is not explicitly disabled in sshd_config",
+                evidence="No X11Forwarding directive found",
+                impact="X11 forwarding may be enabled, allowing remote GUI access",
+                remediation="Set 'X11Forwarding no' in /etc/ssh/sshd_config",
+                phase="Phase 1",
+            )
+        )
+    return findings
+
+
 def run_identity_checks() -> list[Finding]:
     """Run all identity and access control checks."""
     findings = []
@@ -535,5 +561,6 @@ def run_identity_checks() -> list[Finding]:
     findings.extend(check_pam_faillock())
     findings.extend(check_session_timeout())
     findings.extend(check_umask())
+    findings.extend(check_ssh_x11_forwarding())
 
     return findings

@@ -1,9 +1,8 @@
 """Tests for the context phase."""
 
-import pytest
 from unittest.mock import patch
+
 from security_audit.phases.context import gather_context, get_system_info
-from security_audit.core import AuditContext
 
 
 class TestGatherContext:

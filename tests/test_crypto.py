@@ -1,21 +1,14 @@
 """Tests for the crypto phase."""
 
-import pytest
 from unittest.mock import patch
+
 from security_audit.phases.crypto import (
-    check_weak_ssh_keys,
-    check_tls_configuration,
-    check_ssl_certificates,
     check_entropy_available,
-    check_gpg_keys,
     check_password_hashing,
-    check_ssh_key_exchange,
-    check_ssh_ciphers,
-    check_password_quality,
-    check_disk_encryption,
+    check_tls_configuration,
+    check_weak_ssh_keys,
     run_crypto_checks,
 )
-from security_audit.core import Severity
 
 
 class TestCheckWeakSSHKeys:

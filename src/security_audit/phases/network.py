@@ -110,6 +110,29 @@ def check_sysctl_network_hardening() -> list[Finding]:
                     )
                 )
 
+    ipv6_params = {
+        "net.ipv6.conf.all.accept_redirects": "0",
+        "net.ipv6.conf.all.accept_source_route": "0",
+    }
+
+    for param, expected in ipv6_params.items():
+        stdout, _, rc = run_command(f"sysctl -n {param} 2>/dev/null")
+        if rc == 0:
+            actual = stdout.strip()
+            if actual != expected:
+                findings.append(
+                    Finding(
+                        severity=Severity.LOW,
+                        check_id="NET-004",
+                        title=f"Suboptimal {param}",
+                        description=f"Current value: {actual}, expected: {expected}",
+                        evidence=f"{param} = {actual}",
+                        impact="IPv6 network hardening gap",
+                        remediation=f"Set {param} = {expected}",
+                        phase="Phase 2",
+                    )
+                )
+
     return findings
 
 

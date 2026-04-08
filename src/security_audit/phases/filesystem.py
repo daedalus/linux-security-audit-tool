@@ -369,10 +369,36 @@ def check_sudoers_integrity() -> list[Finding]:
     return findings
 
 
+@cached_check("check_at_jobs")
+def check_at_jobs() -> list[Finding]:
+    """Check for at jobs and at.allow restrictions."""
+    findings: list[Finding] = []
+
+    at_allow_exists = run_command("ls -la /etc/at.allow 2>/dev/null")[2] == 0
+    at_deny_exists = run_command("ls -la /etc/at.deny 2>/dev/null")[2] == 0
+
+    if not at_allow_exists and at_deny_exists:
+        stdout, _, rc = run_command("stat -c '%a' /etc/at.deny 2>/dev/null")
+        if rc == 0 and stdout.strip() not in ("", "660", "640", "600"):
+            findings.append(
+                Finding(
+                    severity=Severity.MEDIUM,
+                    check_id="FS-015",
+                    title="Insecure /etc/at.deny Permissions",
+                    description=f"/etc/at.deny has permissions {stdout.strip()}",
+                    evidence=f"/etc/at.deny permissions: {stdout.strip()}",
+                    impact="Users may be able to run at jobs they shouldn't",
+                    remediation="Remove /etc/at.deny or restrict permissions to 640",
+                    phase="Phase 3",
+                )
+            )
+    return findings
+
+
 @cached_check("check_mount_options")
 def check_mount_options() -> list[Finding]:
     """Check security mount options for sensitive filesystems."""
-    findings = []
+    findings: list[Finding] = []
 
     stdout, _, rc = run_command("mount 2>/dev/null")
     if rc != 0 or not stdout:

@@ -1,16 +1,13 @@
 """Tests for the packages phase."""
 
-import pytest
 from unittest.mock import patch
+
 from security_audit.phases.packages import (
-    check_pending_updates,
-    check_last_update,
-    check_untrusted_repos,
-    check_unnecessary_packages,
     check_deprecated_packages,
+    check_pending_updates,
+    check_unnecessary_packages,
     run_package_checks,
 )
-from security_audit.core import Severity
 
 
 class TestCheckPendingUpdates:

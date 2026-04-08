@@ -97,7 +97,13 @@ def generate_pdf_report(
 
 def classify_severity(findings: list[Finding]) -> dict[str, list[Finding]]:
     """Classify findings by severity."""
-    classified = {"critical": [], "high": [], "medium": [], "low": [], "info": []}
+    classified: dict[str, list[Finding]] = {
+        "critical": [],
+        "high": [],
+        "medium": [],
+        "low": [],
+        "info": [],
+    }
 
     for f in findings:
         if f.severity == Severity.CRITICAL:

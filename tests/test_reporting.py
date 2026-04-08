@@ -1,13 +1,12 @@
 """Tests for the reporting phase."""
 
-import pytest
+from security_audit.core import AuditContext, Finding, Severity
 from security_audit.phases.reporting import (
+    calculate_security_score,
     classify_severity,
     generate_markdown_report,
-    calculate_security_score,
     generate_remediation_script,
 )
-from security_audit.core import Finding, Severity, AuditContext
 
 
 class TestClassifySeverity:

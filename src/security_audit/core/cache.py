@@ -129,7 +129,7 @@ def cached_check(
                 return func(*args, **kwargs)
             cached = cache.get(check_name)
             if cached is not None:
-                return cached
+                return cached  # type: ignore[no-any-return]
             result = func(*args, **kwargs)
             cache.set(check_name, result)
             return result
