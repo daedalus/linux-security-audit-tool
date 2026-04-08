@@ -541,6 +541,103 @@ def check_ssh_x11_forwarding() -> list[Finding]:
     return findings
 
 
+@cached_check("check_ssh_permit_empty_passwords")
+def check_ssh_permit_empty_passwords() -> list[Finding]:
+    """Check SSH PermitEmptyPasswords setting."""
+    findings: list[Finding] = []
+
+    paths = ["/etc/ssh/sshd_config", "/etc/ssh/sshd_config.d/*.conf"]
+    stdout, _, rc = run_command(f"grep -r '^PermitEmptyPasswords' {paths} 2>/dev/null")
+    if rc != 0 or "PermitEmptyPasswords no" not in stdout:
+        findings.append(
+            Finding(
+                severity=Severity.HIGH,
+                check_id="IDENT-020",
+                title="SSH PermitEmptyPasswords Not Disabled",
+                description="SSH allows authentication with empty passwords",
+                evidence=stdout.strip()
+                if stdout.strip()
+                else "No PermitEmptyPasswords directive",
+                impact="Users with empty passwords can authenticate without providing password",
+                remediation="Set 'PermitEmptyPasswords no' in /etc/ssh/sshd_config",
+                phase="Phase 1",
+            )
+        )
+    return findings
+
+
+@cached_check("check_ssh_pubkey_auth")
+def check_ssh_pubkey_auth() -> list[Finding]:
+    """Check SSH PubkeyAuthentication setting."""
+    findings: list[Finding] = []
+
+    paths = ["/etc/ssh/sshd_config", "/etc/ssh/sshd_config.d/*.conf"]
+    stdout, _, rc = run_command(f"grep -r '^PubkeyAuthentication' {paths} 2>/dev/null")
+    if rc != 0 or "PubkeyAuthentication yes" not in stdout:
+        stdout_disabled, _, _ = run_command(
+            f"grep -r '^PubkeyAuthentication no' {paths} 2>/dev/null"
+        )
+        if stdout_disabled.strip():
+            findings.append(
+                Finding(
+                    severity=Severity.LOW,
+                    check_id="IDENT-021",
+                    title="SSH PubkeyAuthentication Disabled",
+                    description="PubkeyAuthentication is disabled",
+                    evidence=stdout_disabled.strip(),
+                    impact="Passwordless authentication via SSH keys is not available",
+                    remediation="Set 'PubkeyAuthentication yes' in /etc/ssh/sshd_config for key-based auth",
+                    phase="Phase 1",
+                )
+            )
+    return findings
+
+
+@cached_check("check_ssh_max_auth_tries")
+def check_ssh_max_auth_tries() -> list[Finding]:
+    """Check SSH MaxAuthTries setting."""
+    findings: list[Finding] = []
+
+    paths = ["/etc/ssh/sshd_config", "/etc/ssh/sshd_config.d/*.conf"]
+    stdout, _, rc = run_command(f"grep -r '^MaxAuthTries' {paths} 2>/dev/null")
+    if rc == 0 and stdout.strip():
+        for line in stdout.strip().split("\n"):
+            if line.startswith("MaxAuthTries"):
+                parts = line.split()
+                if len(parts) >= 2:
+                    try:
+                        val = int(parts[1])
+                        if val > 3:
+                            findings.append(
+                                Finding(
+                                    severity=Severity.MEDIUM,
+                                    check_id="IDENT-022",
+                                    title="SSH MaxAuthTries Too High",
+                                    description=f"Current value: {val}, recommended: <= 3",
+                                    evidence=line,
+                                    impact="More login attempts allowed, brute force easier",
+                                    remediation="Set 'MaxAuthTries 3' in /etc/ssh/sshd_config",
+                                    phase="Phase 1",
+                                )
+                            )
+                    except ValueError:
+                        pass
+    else:
+        findings.append(
+            Finding(
+                severity=Severity.LOW,
+                check_id="IDENT-022",
+                title="SSH MaxAuthTries Not Set",
+                description="MaxAuthTries is not explicitly set (default is 6)",
+                evidence="No MaxAuthTries directive",
+                impact="Default allows up to 6 authentication attempts",
+                remediation="Set 'MaxAuthTries 3' in /etc/ssh/sshd_config",
+                phase="Phase 1",
+            )
+        )
+    return findings
+
+
 def run_identity_checks() -> list[Finding]:
     """Run all identity and access control checks."""
     findings = []
@@ -562,5 +659,8 @@ def run_identity_checks() -> list[Finding]:
     findings.extend(check_session_timeout())
     findings.extend(check_umask())
     findings.extend(check_ssh_x11_forwarding())
+    findings.extend(check_ssh_permit_empty_passwords())
+    findings.extend(check_ssh_pubkey_auth())
+    findings.extend(check_ssh_max_auth_tries())
 
     return findings

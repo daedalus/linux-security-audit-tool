@@ -150,7 +150,7 @@ from security_audit.core import Finding, Severity, AuditContext
 - Uptime, virtualization detection
 - System role (server/workstation/container)
 
-### Phase 1: Identity & Access Control (17 checks)
+### Phase 1: Identity & Access Control (20 checks)
 - UID 0 accounts
 - System accounts with shells
 - Empty passwords
@@ -168,6 +168,9 @@ from security_audit.core import Finding, Severity, AuditContext
 - Idle session timeout (TMOUT)
 - Default umask (should be 027 or more restrictive)
 - SSH X11Forwarding configuration
+- SSH PermitEmptyPasswords setting
+- SSH PubkeyAuthentication setting
+- SSH MaxAuthTries setting
 
 ### Phase 2: Network Exposure (15 checks)
 - Listening services (ss/netstat)
@@ -215,7 +218,7 @@ from security_audit.core import Finding, Severity, AuditContext
 - SysV init scripts
 - rkhunter installation and configuration
 
-### Phase 5: Kernel & OS Hardening (25 checks)
+### Phase 5: Kernel & OS Hardening (27 checks)
 - ASLR (address space layout randomization)
 - dmesg_restrict
 - kptr_restrict
@@ -227,6 +230,7 @@ from security_audit.core import Finding, Severity, AuditContext
 - ICMP broadcast ignore
 - VM swappiness
 - Kernel panic on oops
+- BPF JIT hardening
 - User namespace restrictions
 - AppArmor sshd profile enforcement
 - IP forwarding (should be disabled)

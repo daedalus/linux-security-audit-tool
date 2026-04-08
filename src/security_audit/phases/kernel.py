@@ -298,6 +298,31 @@ def check_panic_on_oops() -> list[Finding]:
     return findings
 
 
+@cached_check("check_bpf_jit_harden")
+def check_bpf_jit_harden() -> list[Finding]:
+    """Check BPF JIT hardening setting."""
+    findings: list[Finding] = []
+
+    stdout, _, rc = run_command("sysctl -n net.core.bpf_jit_harden 2>/dev/null")
+    if rc == 0:
+        val = int(stdout.strip() or 0)
+        if val != 2:
+            findings.append(
+                Finding(
+                    severity=Severity.MEDIUM,
+                    check_id="KERN-014",
+                    title="BPF JIT Hardening Not Enabled",
+                    description=f"Current value: {val}, recommended: 2",
+                    evidence=f"net.core.bpf_jit_harden = {val}",
+                    impact="BPF JIT may leak addresses to unprivileged users",
+                    remediation="Set net.core.bpf_jit_harden = 2",
+                    phase="Phase 5",
+                )
+            )
+
+    return findings
+
+
 @cached_check("check_user_namespaces")
 def check_user_namespaces() -> list[Finding]:
     """Check user namespace restrictions."""
@@ -731,6 +756,8 @@ def run_kernel_checks() -> list[Finding]:
     findings.extend(check_kernel_module_blacklist())
     findings.extend(check_sysrq_status())
     findings.extend(check_vm_swappiness())
+    findings.extend(check_panic_on_oops())
+    findings.extend(check_bpf_jit_harden())
     findings.extend(check_user_namespaces())
     findings.extend(check_apparmor_sshd_enforce())
     findings.extend(check_ip_forwarding())
