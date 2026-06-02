@@ -55,6 +55,8 @@ def print_finding(finding: Finding, verbose: bool = False) -> None:
     rprint()
     rprint(f"[{color}]{finding.severity.value}[/{color}]")
     rprint(f"[{color}]{finding.check_id}: {finding.title}[/{color}]")
+    if finding.evidence:
+        rprint(f"  [dim]Evidence: {finding.evidence[:200]}[/dim]")
     if verbose:
         if finding.description:
             rprint(f"  {finding.description}")
@@ -99,85 +101,6 @@ def cli() -> None:
     """Linux Security Audit Tool - Comprehensive security auditing and hardening."""
 
 
-@cli.command()
-@click.option(
-    "--output",
-    "-o",
-    type=click.Path(),
-    default=None,
-    help="Output file for report",
-)
-@click.option(
-    "--phases",
-    "-p",
-    multiple=True,
-    help="Specific phases to run (0-9)",
-)
-@click.option(
-    "--quiet",
-    "-q",
-    is_flag=True,
-    help="Suppress detailed output",
-)
-@click.option(
-    "--verbose",
-    "-v",
-    is_flag=True,
-    help="Show detailed output including descriptions and remediation",
-)
-@click.option(
-    "--debug",
-    "-d",
-    is_flag=True,
-    help="Show debug output with low-level commands being executed",
-)
-@click.option(
-    "--remediate-all",
-    "-r",
-    "remediate_all",
-    is_flag=True,
-    help="Apply automatic remediations for all findings",
-)
-@click.option(
-    "--remediate-only-critical",
-    is_flag=True,
-    help="Apply automatic remediations for CRITICAL findings only",
-)
-@click.option(
-    "--remediate-non-critical",
-    is_flag=True,
-    help="Apply automatic remediations for non-CRITICAL findings",
-)
-@click.option(
-    "--pdf",
-    type=click.Path(),
-    default=None,
-    help="Generate PDF executive report",
-)
-@click.option(
-    "--json",
-    "-j",
-    type=click.Path(),
-    default=None,
-    help="Output file for JSON report",
-)
-@click.option(
-    "--remediate-script",
-    type=click.Path(),
-    default=None,
-    help="Save remediation script to file",
-)
-@click.option(
-    "--cache",
-    is_flag=True,
-    help="Enable caching of check results",
-)
-@click.option(
-    "--cache-ttl",
-    type=int,
-    default=3600,
-    help="Cache TTL in seconds (default: 3600)",
-)
 def _run_phase(
     progress: Progress,
     phase_num: int,
@@ -292,6 +215,85 @@ def _handle_audit_output(
         _save_or_print_remediation(non_critical, remediate_script, "non-CRITICAL")
 
 
+@cli.command()
+@click.option(
+    "--output",
+    "-o",
+    type=click.Path(),
+    default=None,
+    help="Output file for report",
+)
+@click.option(
+    "--phases",
+    "-p",
+    multiple=True,
+    help="Specific phases to run (0-9)",
+)
+@click.option(
+    "--quiet",
+    "-q",
+    is_flag=True,
+    help="Suppress detailed output",
+)
+@click.option(
+    "--verbose",
+    "-v",
+    is_flag=True,
+    help="Show detailed output including descriptions and remediation",
+)
+@click.option(
+    "--debug",
+    "-d",
+    is_flag=True,
+    help="Show debug output with low-level commands being executed",
+)
+@click.option(
+    "--remediate-all",
+    "-r",
+    "remediate_all",
+    is_flag=True,
+    help="Apply automatic remediations for all findings",
+)
+@click.option(
+    "--remediate-only-critical",
+    is_flag=True,
+    help="Apply automatic remediations for CRITICAL findings only",
+)
+@click.option(
+    "--remediate-non-critical",
+    is_flag=True,
+    help="Apply automatic remediations for non-CRITICAL findings",
+)
+@click.option(
+    "--pdf",
+    type=click.Path(),
+    default=None,
+    help="Generate PDF executive report",
+)
+@click.option(
+    "--json",
+    "-j",
+    type=click.Path(),
+    default=None,
+    help="Output file for JSON report",
+)
+@click.option(
+    "--remediate-script",
+    type=click.Path(),
+    default=None,
+    help="Save remediation script to file",
+)
+@click.option(
+    "--cache",
+    is_flag=True,
+    help="Enable caching of check results",
+)
+@click.option(
+    "--cache-ttl",
+    type=int,
+    default=3600,
+    help="Cache TTL in seconds (default: 3600)",
+)
 def audit(
     output: str | None,
     phases: tuple[str, ...],
@@ -396,9 +398,9 @@ def version() -> None:
     console.print(f"Linux Security Audit Tool v{__version__}")
 
 
-def main() -> int:
+def main() -> None:
     """Main entry point for the CLI."""
-    return cli()
+    cli()
 
 
 if __name__ == "__main__":
