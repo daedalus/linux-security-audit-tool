@@ -4,17 +4,17 @@
 
 We support the latest version of the linux-security-audit-tool. Security updates are backported to the most recent major version if critical.
 
-| Version | Supported          |
+| Version | Supported |
 | ------- | ------------------ |
-| 0.1.x   | :white_check_mark: |
+| 0.1.x | :white_check_mark: |
 
 ## Reporting a Vulnerability
 
 If you discover a security vulnerability, please report it responsibly:
 
 1. **Do NOT** create a public GitHub issue for security vulnerabilities
-2. Email the maintainer directly at: clavijodario@gmail.com
-3. Include as much detail as possible:
+1. Email the maintainer directly at: clavijodario@gmail.com
+1. Include as much detail as possible:
    - Description of the vulnerability
    - Steps to reproduce
    - Potential impact
@@ -23,6 +23,7 @@ If you discover a security vulnerability, please report it responsibly:
 ## Scope
 
 This tool performs security audits on local Linux systems. Ensure your vulnerability report relates to:
+
 - Code execution with elevated privileges
 - Privilege escalation vectors
 - Data exposure or credential handling

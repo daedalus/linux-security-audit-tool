@@ -3,7 +3,6 @@
 import logging
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional
 
 from .cache import CheckCache, cached_check, clear_cache, get_cache, init_cache
 

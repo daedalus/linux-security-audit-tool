@@ -263,7 +263,7 @@ def check_critical_file_permissions() -> list[Finding]:
         "/etc/group": ("root", "root", "0644"),
     }
 
-    for filepath, (owner, group, perms) in critical_files.items():
+    for filepath, (_, _, perms) in critical_files.items():
         stdout, _, rc = run_command(["ls", "-la", filepath])
         if rc == 0 and stdout:
             parts = stdout.split()
@@ -303,6 +303,46 @@ def check_critical_file_permissions() -> list[Finding]:
 
 
 @cached_check("check_cron_jobs")
+def _check_cron_file_perms(path: str, findings: list[Finding]) -> None:
+    """Check ownership and permissions of cron files inside a directory."""
+    files_out, _, frc = run_command(f"find {path} -type f 2>/dev/null")
+    if frc != 0 or not files_out:
+        return
+    for fpath in files_out.strip().split("\n"):
+        if not fpath:
+            continue
+        fstat, _, src = run_command(["stat", "-c", "%U %a", fpath])
+        if src != 0 or not fstat:
+            continue
+        owner, perms = fstat.split()
+        if owner != "root":
+            findings.append(
+                Finding(
+                    severity=Severity.HIGH,
+                    check_id="FS-007",
+                    title="Cron Script Not Owned by Root",
+                    description=f"{fpath} owned by {owner}, expected root",
+                    evidence=f"stat: {fstat}",
+                    impact="Non-root user can modify cron script, leading to privilege escalation on execution",
+                    remediation=f"chown root:root {fpath}",
+                    phase="Phase 3",
+                )
+            )
+        if len(perms) >= 3 and perms[-1] in ("2", "3", "6", "7"):
+            findings.append(
+                Finding(
+                    severity=Severity.CRITICAL,
+                    check_id="FS-007",
+                    title="World-Writable Cron Script",
+                    description=f"{fpath} has permissions {perms}",
+                    evidence=f"stat: {fstat}",
+                    impact="Any user can modify this cron script to execute arbitrary code as the cron owner",
+                    remediation=f"chmod o-w {fpath}",
+                    phase="Phase 3",
+                )
+            )
+
+
 def check_cron_jobs() -> list[Finding]:
     """Check for suspicious cron jobs."""
     findings = []
@@ -333,45 +373,8 @@ def check_cron_jobs() -> list[Finding]:
                     )
                 )
 
-        # Check permissions on individual cron files
         if path.endswith("/"):
-            # Directory — check its children
-            files_out, _, frc = run_command(f"find {path} -type f 2>/dev/null")
-            if frc == 0 and files_out:
-                for fpath in files_out.strip().split("\n"):
-                    if not fpath:
-                        continue
-                    fstat, _, src = run_command(["stat", "-c", "%U %a", fpath])
-                    if src != 0 or not fstat:
-                        continue
-                    owner, perms = fstat.split()
-                    if owner != "root":
-                        findings.append(
-                            Finding(
-                                severity=Severity.HIGH,
-                                check_id="FS-007",
-                                title="Cron Script Not Owned by Root",
-                                description=f"{fpath} owned by {owner}, expected root",
-                                evidence=f"stat: {fstat}",
-                                impact="Non-root user can modify cron script, leading to privilege escalation on execution",
-                                remediation=f"chown root:root {fpath}",
-                                phase="Phase 3",
-                            )
-                        )
-                    # World-writable cron script is a direct injection vector
-                    if len(perms) >= 3 and perms[-1] in ("2", "3", "6", "7"):
-                        findings.append(
-                            Finding(
-                                severity=Severity.CRITICAL,
-                                check_id="FS-007",
-                                title="World-Writable Cron Script",
-                                description=f"{fpath} has permissions {perms}",
-                                evidence=f"stat: {fstat}",
-                                impact="Any user can modify this cron script to execute arbitrary code as the cron owner",
-                                remediation=f"chmod o-w {fpath}",
-                                phase="Phase 3",
-                            )
-                        )
+            _check_cron_file_perms(path, findings)
 
     stdout, _, rc = run_command("crontab -l 2>/dev/null")
     if rc == 0 and stdout and stdout.strip():

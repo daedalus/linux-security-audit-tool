@@ -31,7 +31,7 @@ mypy src/
 ## Adding New Checks
 
 1. Find the appropriate phase module in `src/security_audit/phases/`
-2. Add a new check function following the pattern:
+1. Add a new check function following the pattern:
 
 ```python
 def check_new_thing() -> list[Finding]:
@@ -55,7 +55,7 @@ def check_new_thing() -> list[Finding]:
 ```
 
 3. Add the check to the phase's `run_*_checks()` function
-4. Add tests in `tests/`
+1. Add tests in `tests/`
 
 ## Check ID Format
 
@@ -73,9 +73,9 @@ def check_new_thing() -> list[Finding]:
 ## Submitting Changes
 
 1. Fork and create a feature branch
-2. Run tests and linting
-3. Update tests if needed
-4. Submit a pull request
+1. Run tests and linting
+1. Update tests if needed
+1. Submit a pull request
 
 ## Code Style
 

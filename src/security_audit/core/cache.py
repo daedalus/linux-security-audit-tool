@@ -104,7 +104,6 @@ def init_cache(enabled: bool = False, ttl: int = 3600) -> CheckCache:
 
 def clear_cache() -> None:
     """Clear the global cache."""
-    global _global_cache
     if _global_cache is not None:
         _global_cache.clear()
 

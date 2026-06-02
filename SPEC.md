@@ -7,6 +7,7 @@ A comprehensive CLI tool for auditing Linux system security posture. It performs
 ## Scope
 
 ### In SCOPE
+
 - Linux configuration for security auditing tool
 - CLI interface with Rich console output
 - 9-phase security audit (Phase 0-9)
@@ -22,6 +23,7 @@ A comprehensive CLI tool for auditing Linux system security posture. It performs
 - Check result caching with configurable TTL (default 3600s)
 
 ### Not in SCOPE
+
 - GUI interface
 - Web API
 - Real-time monitoring
@@ -40,6 +42,7 @@ security-audit [OPTIONS] COMMAND [ARGS]
 ```
 
 #### audit command
+
 ```bash
 security-audit audit [OPTIONS]
   --output, -o PATH          Output file for markdown report
@@ -58,6 +61,7 @@ security-audit audit [OPTIONS]
 ```
 
 #### version command
+
 ```bash
 security-audit version
   Show version information
@@ -91,6 +95,7 @@ from security_audit.core import Finding, Severity, AuditContext
 ### Data Structures
 
 #### Finding
+
 - `severity: Severity` - CRITICAL, HIGH, MEDIUM, LOW, INFO
 - `check_id: str` - Unique identifier (e.g., "IDENT-001")
 - `title: str` - Short title
@@ -101,6 +106,7 @@ from security_audit.core import Finding, Severity, AuditContext
 - `phase: str` - Phase name (e.g., "Phase 1")
 
 #### Severity (Enum)
+
 - CRITICAL - Direct root compromise
 - HIGH - Easy privilege escalation
 - MEDIUM - Increased attack surface
@@ -108,6 +114,7 @@ from security_audit.core import Finding, Severity, AuditContext
 - INFO - Non-security hygiene
 
 #### AuditContext
+
 - `hostname: str`
 - `os_release: str`
 - `kernel: str`
@@ -120,11 +127,13 @@ from security_audit.core import Finding, Severity, AuditContext
 ## Data Formats
 
 ### Input
+
 - System commands via subprocess
 - File system reads (/etc/passwd, /etc/shadow, etc.)
 - sysctl parameter queries
 
 ### Output
+
 - Console output (Rich formatted)
 - Markdown report (UTF-8)
 - PDF report (via weasyprint)
@@ -133,12 +142,12 @@ from security_audit.core import Finding, Severity, AuditContext
 ## Edge Cases
 
 1. **Root access not available**: Many checks require root; gracefully skip with warning
-2. **Command timeout**: Long-running commands timeout after 30s
-3. **File not found**: Skip checks for missing files (e.g., no auditd installed)
-4. **Container environment**: Detect container and adjust checks appropriately
-5. **Empty output**: Handle empty command output gracefully
-6. **Permission denied**: Handle permission errors without crashing
-7. **Unicode in output**: Handle non-ASCII characters in file content
+1. **Command timeout**: Long-running commands timeout after 30s
+1. **File not found**: Skip checks for missing files (e.g., no auditd installed)
+1. **Container environment**: Detect container and adjust checks appropriately
+1. **Empty output**: Handle empty command output gracefully
+1. **Permission denied**: Handle permission errors without crashing
+1. **Unicode in output**: Handle non-ASCII characters in file content
 
 ## Performance & Constraints
 
@@ -150,11 +159,13 @@ from security_audit.core import Finding, Severity, AuditContext
 ## Audit Phases
 
 ### Phase 0: Context Gathering
+
 - Hostname, OS release, kernel version
 - Uptime, virtualization detection
 - System role (server/workstation/container)
 
 ### Phase 1: Identity & Access Control (20 checks)
+
 - UID 0 accounts
 - System accounts with shells
 - Empty passwords
@@ -177,6 +188,7 @@ from security_audit.core import Finding, Severity, AuditContext
 - SSH MaxAuthTries setting
 
 ### Phase 2: Network Exposure (15 checks)
+
 - Listening services (ss/netstat)
 - Firewall status (iptables/nftables/ufw/firewalld)
 - UFW firewall status and rules
@@ -196,6 +208,7 @@ from security_audit.core import Finding, Severity, AuditContext
 - Nginx insecure configuration
 
 ### Phase 3: File System & Permissions (14 checks)
+
 - SUID/SGID binaries
 - Linux capabilities(7) (getcap -r /) — cap_setuid, cap_sys_admin, cap_dac_override, etc.
 - World-writable files/directories
@@ -211,6 +224,7 @@ from security_audit.core import Finding, Severity, AuditContext
 - at jobs permissions (/etc/at.allow, /etc/at.deny)
 
 ### Phase 4: Process & Service Posture (11 checks)
+
 - Running services
 - Enabled services at boot
 - Docker socket
@@ -224,6 +238,7 @@ from security_audit.core import Finding, Severity, AuditContext
 - rkhunter installation and configuration
 
 ### Phase 5: Kernel & OS Hardening (27 checks)
+
 - ASLR (address space layout randomization)
 - dmesg_restrict
 - kptr_restrict
@@ -251,6 +266,7 @@ from security_audit.core import Finding, Severity, AuditContext
 - SecureBoot status
 
 ### Phase 6: Logging & Monitoring (11 checks)
+
 - auditd status
 - Audit rules
 - Audit rules for sensitive files (/etc/passwd, /etc/shadow)
@@ -264,6 +280,7 @@ from security_audit.core import Finding, Severity, AuditContext
 - Remote logging configuration (syslog forwarding to external system)
 
 ### Phase 7: Package & Update Hygiene (6 checks)
+
 - Pending security updates
 - Last package update time
 - Last full system update
@@ -272,6 +289,7 @@ from security_audit.core import Finding, Severity, AuditContext
 - Deprecated packages
 
 ### Phase 8: Cryptographic Posture (10 checks)
+
 - SSH host key strength (RSA, DSA, ECDSA, Ed25519)
 - SSH key exchange algorithms
 - SSH ciphers and MACs
@@ -284,6 +302,7 @@ from security_audit.core import Finding, Severity, AuditContext
 - Disk encryption status (LUKS)
 
 ### Phase 9: Reporting & Remediation
+
 - Finding classification
 - Security score calculation
 - Markdown report generation

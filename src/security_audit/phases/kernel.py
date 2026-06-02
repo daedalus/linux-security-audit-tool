@@ -413,7 +413,7 @@ def check_rp_filter() -> list[Finding]:
         ("net.ipv4.conf.default.rp_filter", "default"),
     ]
 
-    for param, scope in checks:
+    for param, _ in checks:
         stdout, _, rc = run_command(f"sysctl -n {param} 2>/dev/null")
         if rc == 0 and stdout.strip() != "1":
             findings.append(

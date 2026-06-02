@@ -728,90 +728,103 @@ def check_ssh_tcp_forwarding() -> list[Finding]:
 
 
 @cached_check("check_weak_service_credentials")
-def check_weak_service_credentials() -> list[Finding]:
-    """Check for weak or default credentials in common services.
-
-    Scans configuration files for MySQL, Redis, and PostgreSQL for
-    default/empty passwords or unauthenticated access configurations.
-    """
+def _check_mysql_creds(paths: list[str]) -> list[Finding]:
+    """Check MySQL config files for plaintext passwords."""
     findings: list[Finding] = []
-
-    # MySQL — check for plaintext password in config files
-    mysql_configs = ["/etc/mysql/my.cnf", "/root/.my.cnf"]
-    for path in mysql_configs:
+    for path in paths:
         stdout, _, rc = run_command(["cat", path])
-        if rc == 0 and stdout:
-            for line in stdout.strip().split("\n"):
-                stripped = line.strip()
-                if "password" in stripped.lower():
-                    findings.append(
-                        Finding(
-                            severity=Severity.HIGH,
-                            check_id="IDENT-025",
-                            title="MySQL Credential in Plaintext Config",
-                            description=f"Password found in {path}",
-                            evidence=stripped,
-                            impact="Credentials stored in plaintext can be read by any user with file access",
-                            remediation=f"Remove password from {path}; use mysql_config_editor or socket auth instead",
-                            phase="Phase 1",
-                        )
-                    )
-                    break
-
-    # Redis — requirepass not set or empty
-    stdout, _, rc = run_command(
-        "grep -E '^requirepass' /etc/redis/redis.conf 2>/dev/null"
-    )
-    if rc != 0 or not stdout.strip():
-        findings.append(
-            Finding(
-                severity=Severity.HIGH,
-                check_id="IDENT-025",
-                title="Redis Authentication Not Configured",
-                description="requirepass is not set in /etc/redis/redis.conf",
-                evidence="No requirepass directive found",
-                impact="Redis is accessible without authentication, allowing remote code execution via Lua sandbox",
-                remediation="Set requirepass in /etc/redis/redis.conf and restart redis-server",
-                phase="Phase 1",
-            )
-        )
-
-    # PostgreSQL — check for trust authentication in pg_hba.conf
-    stdout, _, rc = run_command("grep -r 'trust' /etc/postgresql/ 2>/dev/null")
-    if rc == 0 and stdout.strip():
-        findings.append(
-            Finding(
-                severity=Severity.HIGH,
-                check_id="IDENT-025",
-                title="PostgreSQL Trust Authentication Enabled",
-                description="Found 'trust' authentication entries in pg_hba.conf",
-                evidence=stdout.strip()[:500],
-                impact="Trust authentication allows passwordless database access for matching entries",
-                remediation="Replace 'trust' with 'md5' or 'scram-sha-256' in pg_hba.conf",
-                phase="Phase 1",
-            )
-        )
-
-    # PostgreSQL — check .pgpass is not world-readable
-    stdout, _, rc = run_command(["ls", "-la", "/root/.pgpass"])
-    if rc == 0 and stdout:
-        parts = stdout.split()
-        if len(parts) >= 1:
-            perms = parts[0]
-            if len(perms) >= 9 and (perms[7] != "-" or perms[8] != "-"):
+        if rc != 0 or not stdout:
+            continue
+        for line in stdout.strip().split("\n"):
+            if "password" in line.strip().lower():
                 findings.append(
                     Finding(
                         severity=Severity.HIGH,
                         check_id="IDENT-025",
-                        title="World-Readable PostgreSQL Password File",
-                        description=f"/root/.pgpass has permissions {perms}",
-                        evidence=stdout,
-                        impact="PostgreSQL credentials are readable by other users",
-                        remediation="Set permissions to 600: chmod 600 /root/.pgpass",
+                        title="MySQL Credential in Plaintext Config",
+                        description=f"Password found in {path}",
+                        evidence=line.strip(),
+                        impact="Credentials stored in plaintext can be read by any user with file access",
+                        remediation=f"Remove password from {path}; use mysql_config_editor or socket auth instead",
                         phase="Phase 1",
                     )
                 )
+                break
+    return findings
 
+
+def _check_redis_auth() -> list[Finding]:
+    """Check Redis requirepass configuration."""
+    stdout, _, rc = run_command(
+        "grep -E '^requirepass' /etc/redis/redis.conf 2>/dev/null"
+    )
+    if rc == 0 and stdout.strip():
+        return []
+    return [
+        Finding(
+            severity=Severity.HIGH,
+            check_id="IDENT-025",
+            title="Redis Authentication Not Configured",
+            description="requirepass is not set in /etc/redis/redis.conf",
+            evidence="No requirepass directive found",
+            impact="Redis is accessible without authentication, allowing remote code execution via Lua sandbox",
+            remediation="Set requirepass in /etc/redis/redis.conf and restart redis-server",
+            phase="Phase 1",
+        )
+    ]
+
+
+def _check_pgsql_trust() -> list[Finding]:
+    """Check PostgreSQL for trust authentication entries."""
+    stdout, _, rc = run_command("grep -r 'trust' /etc/postgresql/ 2>/dev/null")
+    if rc != 0 or not stdout.strip():
+        return []
+    return [
+        Finding(
+            severity=Severity.HIGH,
+            check_id="IDENT-025",
+            title="PostgreSQL Trust Authentication Enabled",
+            description="Found 'trust' authentication entries in pg_hba.conf",
+            evidence=stdout.strip()[:500],
+            impact="Trust authentication allows passwordless database access for matching entries",
+            remediation="Replace 'trust' with 'md5' or 'scram-sha-256' in pg_hba.conf",
+            phase="Phase 1",
+        )
+    ]
+
+
+def _check_pgsql_passwd_file() -> list[Finding]:
+    """Check PostgreSQL .pgpass file permissions."""
+    stdout, _, rc = run_command(["ls", "-la", "/root/.pgpass"])
+    if rc != 0 or not stdout:
+        return []
+    parts = stdout.split()
+    if len(parts) < 1:
+        return []
+    perms = parts[0]
+    if len(perms) < 9 or (perms[7] == "-" and perms[8] == "-"):
+        return []
+    return [
+        Finding(
+            severity=Severity.HIGH,
+            check_id="IDENT-025",
+            title="World-Readable PostgreSQL Password File",
+            description=f"/root/.pgpass has permissions {perms}",
+            evidence=stdout,
+            impact="PostgreSQL credentials are readable by other users",
+            remediation="Set permissions to 600: chmod 600 /root/.pgpass",
+            phase="Phase 1",
+        )
+    ]
+
+
+def check_weak_service_credentials() -> list[Finding]:
+    """Check for weak or default credentials in common services."""
+    findings: list[Finding] = []
+    findings.extend(_check_mysql_creds(["/etc/mysql/my.cnf", "/root/.my.cnf"]))
+    findings.extend(_check_redis_auth())
+    findings.extend(_check_pgsql_trust())
+    findings.extend(_check_pgsql_passwd_file())
     return findings
 
 

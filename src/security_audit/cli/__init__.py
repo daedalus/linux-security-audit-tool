@@ -1,7 +1,7 @@
 """Command-line interface for the Linux Security Audit Tool."""
 
-import sys
-from typing import Optional
+from collections.abc import Callable
+from typing import Any
 
 import click
 from rich import print as rprint
@@ -10,7 +10,6 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 
 from security_audit import __version__
 from security_audit.core import (
-    DEBUG,
     Finding,
     Severity,
     check_root,
@@ -98,7 +97,6 @@ def print_summary(findings: list[Finding]) -> None:
 @click.version_option(version="0.1.0")
 def cli() -> None:
     """Linux Security Audit Tool - Comprehensive security auditing and hardening."""
-    pass
 
 
 @cli.command()
@@ -180,6 +178,120 @@ def cli() -> None:
     default=3600,
     help="Cache TTL in seconds (default: 3600)",
 )
+def _run_phase(
+    progress: Progress,
+    phase_num: int,
+    selected_phases: list[int],
+    description: str,
+    run_fn: Callable[[], list[Finding]],
+    all_findings: list[Finding],
+    quiet: bool,
+    verbose: bool,
+) -> None:
+    """Run a single audit phase with progress tracking."""
+    if phase_num not in selected_phases:
+        return
+    task = progress.add_task(description, total=None)
+    findings = run_fn()
+    all_findings.extend(findings)
+    if not quiet:
+        console.print()
+        for f in findings:
+            print_finding(f, verbose=verbose)
+    progress.update(task, completed=True)
+
+
+_PHASE_DESCRIPTIONS: list[str] = [
+    "Checking identity & access control...",
+    "Checking network exposure...",
+    "Checking file system & permissions...",
+    "Checking process & service posture...",
+    "Checking kernel & OS hardening...",
+    "Checking logging & monitoring...",
+    "Checking package hygiene...",
+    "Checking cryptographic posture...",
+]
+
+_PHASE_NUMBERS: list[int] = [1, 2, 3, 4, 5, 6, 7, 8]
+
+
+def _save_or_print_remediation(
+    findings: list[Finding],
+    remediate_script: str | None,
+    label: str,
+) -> None:
+    """Generate and save or display a remediation script."""
+    console.print(f"\n[bold yellow]Applying remediations ({label})...[/bold yellow]")
+    script = generate_remediation_script(findings)
+    if remediate_script:
+        with open(remediate_script, "w", encoding="utf-8") as out_file:
+            out_file.write(script)
+        console.print(
+            f"\n[green]Remediation script saved to {remediate_script}[/green]"
+        )
+        console.print("[dim]Run with: sudo bash " + remediate_script + "[/dim]")
+    else:
+        count_str = (
+            f" ({len(findings)} {label} findings)" if "manual" not in label else ""
+        )
+        console.print(f"\n[dim]Generated remediation script{count_str}:[/dim]")
+        console.print(f"[dim]{script[:500]}...[/dim]")
+        console.print(
+            "\n[yellow]Note: Automatic remediation is not yet fully implemented.[/yellow]"
+        )
+        console.print("[dim]Use --remediate-script <file> to save full script.[/dim]")
+
+
+def _print_context_info(context: Any) -> None:
+    """Print system context information."""
+    console.print(f"  Hostname: {context.hostname}")
+    console.print(f"  Kernel: {context.kernel}")
+    stdout, _, _ = run_command("cat /etc/issue")
+    if stdout:
+        console.print(f"  OS: {stdout.split(chr(10))[0]}")
+
+
+def _handle_audit_output(
+    context: Any,
+    all_findings: list[Finding],
+    output: str | None,
+    pdf: str | None,
+    json: str | None,
+    remediate_all: bool,
+    remediate_only_critical: bool,
+    remediate_non_critical: bool,
+    remediate_script: str | None,
+) -> None:
+    """Handle audit output: summary, reports, and remediation."""
+    console.print()
+    print_summary(all_findings)
+
+    if output:
+        report = generate_markdown_report(context, all_findings)
+        with open(output, "w", encoding="utf-8") as out_file:
+            out_file.write(report)
+        console.print(f"\n[green]Report saved to {output}[/green]")
+
+    if pdf:
+        generate_pdf_report(context, all_findings, pdf)
+        console.print(f"\n[green]PDF report saved to {pdf}[/green]")
+
+    if json:
+        json_report = generate_json_report(context, all_findings)
+        with open(json, "w", encoding="utf-8") as out_file:
+            out_file.write(json_report)
+        console.print(f"\n[green]JSON report saved to {json}[/green]")
+
+    if remediate_all:
+        _save_or_print_remediation(all_findings, remediate_script, "all")
+    elif remediate_only_critical:
+        critical = [f for f in all_findings if f.severity == Severity.CRITICAL]
+        _save_or_print_remediation(critical, remediate_script, "CRITICAL only")
+    elif remediate_non_critical:
+        non_critical = [f for f in all_findings if f.severity != Severity.CRITICAL]
+        _save_or_print_remediation(non_critical, remediate_script, "non-CRITICAL")
+
+
 def audit(
     output: str | None,
     phases: tuple[str, ...],
@@ -211,10 +323,13 @@ def audit(
     console.print(f"[bold blue]Linux Security Audit Tool v{__version__}[/bold blue]")
     console.print()
 
-    all_findings = []
+    all_findings: list[Finding] = []
     context = None
 
-    selected_phases = list(range(10)) if not phases else [int(p) for p in phases]
+    if phases:
+        selected_phases = [int(p) for p in phases]
+    else:
+        selected_phases = list(range(10))
 
     with Progress(
         SpinnerColumn(),
@@ -225,104 +340,31 @@ def audit(
             task = progress.add_task("Gathering context...", total=None)
             context = gather_context()
             if not quiet:
-                console.print(f"  Hostname: {context.hostname}")
-                console.print(f"  Kernel: {context.kernel}")
-                stdout, _, _ = run_command("cat /etc/issue")
-                if stdout:
-                    console.print(f"  OS: {stdout.split(chr(10))[0]}")
+                _print_context_info(context)
             progress.update(task, completed=True)
 
-        if 1 in selected_phases:
-            task = progress.add_task(
-                "Checking identity & access control...", total=None
+        phase_runners: list[Callable[[], list[Finding]]] = [
+            run_identity_checks,
+            run_network_checks,
+            run_filesystem_checks,
+            run_process_checks,
+            run_kernel_checks,
+            run_logging_checks,
+            run_package_checks,
+            run_crypto_checks,
+        ]
+
+        for pn, desc, runner in zip(_PHASE_NUMBERS, _PHASE_DESCRIPTIONS, phase_runners):
+            _run_phase(
+                progress,
+                pn,
+                selected_phases,
+                desc,
+                runner,
+                all_findings,
+                quiet,
+                verbose,
             )
-            findings = run_identity_checks()
-            all_findings.extend(findings)
-            if not quiet:
-                console.print()
-                for f in findings:
-                    print_finding(f, verbose=verbose)
-            for f in findings:
-                if f.check_id == "IDENT-001" and f.severity == Severity.CRITICAL:
-                    progress.update(
-                        task,
-                        description=f"Checking identity & access control...\n{f.severity.value} {f.check_id}: {f.title}",
-                    )
-            progress.update(task, completed=True)
-
-        if 2 in selected_phases:
-            task = progress.add_task("Checking network exposure...", total=None)
-            findings = run_network_checks()
-            all_findings.extend(findings)
-            if not quiet:
-                console.print()
-                for f in findings:
-                    print_finding(f, verbose=verbose)
-            progress.update(task, completed=True)
-
-        if 3 in selected_phases:
-            task = progress.add_task(
-                "Checking file system & permissions...", total=None
-            )
-            findings = run_filesystem_checks()
-            all_findings.extend(findings)
-            if not quiet:
-                console.print()
-                for f in findings:
-                    print_finding(f, verbose=verbose)
-            progress.update(task, completed=True)
-
-        if 4 in selected_phases:
-            task = progress.add_task(
-                "Checking process & service posture...", total=None
-            )
-            findings = run_process_checks()
-            all_findings.extend(findings)
-            if not quiet:
-                console.print()
-                for f in findings:
-                    print_finding(f, verbose=verbose)
-            progress.update(task, completed=True)
-
-        if 5 in selected_phases:
-            task = progress.add_task("Checking kernel & OS hardening...", total=None)
-            findings = run_kernel_checks()
-            all_findings.extend(findings)
-            if not quiet:
-                console.print()
-                for f in findings:
-                    print_finding(f, verbose=verbose)
-            progress.update(task, completed=True)
-
-        if 6 in selected_phases:
-            task = progress.add_task("Checking logging & monitoring...", total=None)
-            findings = run_logging_checks()
-            all_findings.extend(findings)
-            if not quiet:
-                console.print()
-                for f in findings:
-                    print_finding(f, verbose=verbose)
-            progress.update(task, completed=True)
-
-        if 7 in selected_phases:
-            task = progress.add_task("Checking package hygiene...", total=None)
-            findings = run_package_checks()
-            all_findings.extend(findings)
-            if not quiet:
-                console.print()
-                for f in findings:
-                    print_finding(f, verbose=verbose)
-            progress.update(task, completed=True)
-
-        if 8 in selected_phases:
-            task = progress.add_task("Checking cryptographic posture...", total=None)
-            findings = run_crypto_checks()
-            all_findings.extend(findings)
-            if not quiet:
-                console.print()
-                for f in findings:
-                    print_finding(f, verbose=verbose)
-            progress.update(task, completed=True)
 
         if 9 in selected_phases:
             task = progress.add_task("Generating report...", total=None)
@@ -332,95 +374,20 @@ def audit(
             console.print(f"\n[bold]Security Score: {score}/100[/bold]")
             progress.update(task, completed=True)
 
-    console.print()
-    print_summary(all_findings)
-
     if context is None:
         context = gather_context()
 
-    if output:
-        report = generate_markdown_report(context, all_findings)
-        with open(output, "w", encoding="utf-8") as out_file:
-            out_file.write(report)
-        console.print(f"\n[green]Report saved to {output}[/green]")
-
-    if pdf:
-        generate_pdf_report(context, all_findings, pdf)
-        console.print(f"\n[green]PDF report saved to {pdf}[/green]")
-
-    if json:
-        json_report = generate_json_report(context, all_findings)
-        with open(json, "w", encoding="utf-8") as out_file:
-            out_file.write(json_report)
-        console.print(f"\n[green]JSON report saved to {json}[/green]")
-
-    if remediate_all:
-        console.print("\n[bold yellow]Applying remediations (all)...[/bold yellow]")
-        script = generate_remediation_script(all_findings)
-        if remediate_script:
-            with open(remediate_script, "w", encoding="utf-8") as out_file:
-                out_file.write(script)
-            console.print(
-                f"\n[green]Remediation script saved to {remediate_script}[/green]"
-            )
-            console.print("[dim]Run with: sudo bash " + remediate_script + "[/dim]")
-        else:
-            console.print("\n[dim]Generated remediation script:[/dim]")
-            console.print(f"[dim]{script[:500]}...[/dim]")
-            console.print(
-                "\n[yellow]Note: Automatic remediation is not yet fully implemented.[/yellow]"
-            )
-            console.print(
-                "[dim]Use --remediate-script <file> to save full script.[/dim]"
-            )
-    elif remediate_only_critical:
-        critical = [f for f in all_findings if f.severity == Severity.CRITICAL]
-        console.print(
-            "\n[bold yellow]Applying remediations (CRITICAL only)...[/bold yellow]"
-        )
-        script = generate_remediation_script(critical)
-        if remediate_script:
-            with open(remediate_script, "w", encoding="utf-8") as out_file:
-                out_file.write(script)
-            console.print(
-                f"\n[green]Remediation script saved to {remediate_script}[/green]"
-            )
-            console.print("[dim]Run with: sudo bash " + remediate_script + "[/dim]")
-        else:
-            console.print(
-                f"\n[dim]Generated remediation script for {len(critical)} critical findings:[/dim]"
-            )
-            console.print(f"[dim]{script[:500]}...[/dim]")
-            console.print(
-                "\n[yellow]Note: Automatic remediation is not yet fully implemented.[/yellow]"
-            )
-            console.print(
-                "[dim]Use --remediate-script <file> to save full script.[/dim]"
-            )
-    elif remediate_non_critical:
-        non_critical = [f for f in all_findings if f.severity != Severity.CRITICAL]
-        console.print(
-            "\n[bold yellow]Applying remediations (non-CRITICAL)...[/bold yellow]"
-        )
-        script = generate_remediation_script(non_critical)
-        if remediate_script:
-            with open(remediate_script, "w", encoding="utf-8") as out_file:
-                out_file.write(script)
-            console.print(
-                f"\n[green]Remediation script saved to {remediate_script}[/green]"
-            )
-            console.print("[dim]Run with: sudo bash " + remediate_script + "[/dim]")
-        else:
-            console.print(
-                f"\n[dim]Generated remediation script for {len(non_critical)} non-critical findings:[/dim]"
-            )
-            console.print(f"[dim]{script[:500]}...[/dim]")
-            console.print(
-                "\n[yellow]Note: Automatic remediation is not yet fully implemented.[/yellow]"
-            )
-            console.print(
-                "[dim]Use --remediate-script <file> to save full script.[/dim]"
-            )
+    _handle_audit_output(
+        context=context,
+        all_findings=all_findings,
+        output=output,
+        pdf=pdf,
+        json=json,
+        remediate_all=remediate_all,
+        remediate_only_critical=remediate_only_critical,
+        remediate_non_critical=remediate_non_critical,
+        remediate_script=remediate_script,
+    )
 
 
 @cli.command()

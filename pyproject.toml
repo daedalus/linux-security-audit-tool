@@ -9,14 +9,23 @@ description = "Comprehensive Linux security auditing and hardening tool"
 readme = "README.md"
 requires-python = ">=3.11"
 license = {text = "MIT"}
-authors = [{name = "Dario Clavijo", email = "clavijodario@gmail.com"}]
-dependencies = ["weasyprint>=60.0", "click>=8.0", "rich>=13.0"]
+authors = [
+    {name = "Dario Clavijo", email = "clavijodario@gmail.com"}
+]
+dependencies = [
+    "weasyprint>=60.0",
+    "click>=8.0",
+    "rich>=13.0",
+]
 
 [project.optional-dependencies]
 dev = [
     "ruff",
     "mypy",
     "hatch",
+    "pip-api",
+    "impactguard",
+    "mdformat",
 ]
 test = [
     "pytest",
@@ -25,7 +34,13 @@ test = [
     "pytest-asyncio",
     "hypothesis",
 ]
-lint = ["ruff", "mypy"]
+lint = [
+    "prospector[with_ruff,with_mypy]",
+    "vulture",
+    "lizard",
+    "mdformat",
+    "impactguard",
+  ]
 all = ["linux-security-audit-tool[dev,test,lint]"]
 
 [project.scripts]
@@ -48,13 +63,13 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "ANN", "TCH", "N", "C4", "ARG"]
-ignore = ["E501", "ANN401"]  # line length, Any types
+ignore = ["E501", "ANN401"]
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]
-"process.py" = ["E741"]  # Single letter `l` for lines
-"reporting.py" = ["F821"]  # Shell script variables in f-strings
-"tests/*.py" = ["ANN201", "ANN"]  # Test function type hints
+"process.py" = ["E741"]
+"reporting.py" = ["F821"]
+"tests/*.py" = ["ANN201", "ANN"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
@@ -72,23 +87,36 @@ check_untyped_defs = true
 
 [[tool.mypy.overrides]]
 module = "security_audit.phases.reporting"
-ignore_errors = true  # Generates shell scripts with $rule variable
+ignore_errors = true
 
 [[tool.mypy.overrides]]
 module = "security_audit.cli"
-ignore_errors = true  # Click wrapper returns Any
+ignore_errors = true
+
+[tool.prospector]
+output-format = "text"
+strictness = "medium"
+test-warnings = false
+
+[tool.prospector.tools]
+ruff = true
+mypy = true
+pylint = true
+pyflakes = false
+pycodestyle = false
+mccabe = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-v --tb=short --cov=security_audit"
+addopts = "-v --tb=short --cov=src --cov-fail-under=80"
 filterwarnings = ["ignore::DeprecationWarning"]
 
 [tool.coverage.run]
-source = ["security_audit"]
+source = ["src"]
 branch = true
-omit = ["tests/*"]
 
 [tool.coverage.report]
+exclude = ["tests/*", "*/__init__.py"]
 exclude_lines = [
     "pragma: no cover",
     "def __repr__",

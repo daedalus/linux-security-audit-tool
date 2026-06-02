@@ -268,13 +268,9 @@ echo "MEDIUM issues: ${#MEDIUM_FINDINGS[@]}"
     return script
 
 
-def _generate_remediation_for_finding(f: Finding) -> str:
-    """Generate remediation commands for a specific finding."""
-
-    # UID 0 accounts
-    if f.check_id == "IDENT-001":
-        return f"""
-# {f.check_id}: {f.title}
+_REMEDIATION_SCRIPTS: dict[str, str] = {
+    "IDENT-001": """\
+# {check_id}: {title}
 # Find and remove unauthorized UID 0 accounts
 echo "Checking for duplicate UID 0 accounts..."
 awk -F: '$3 == 0 {{print}}' /etc/passwd | while read line; do
@@ -284,24 +280,18 @@ awk -F: '$3 == 0 {{print}}' /etc/passwd | while read line; do
         echo "To remove: userdel -r $user"
     fi
 done
-"""
-
-    # Empty passwords
-    if f.check_id == "IDENT-003":
-        return f"""
-# {f.check_id}: {f.title}
+""",
+    "IDENT-003": """\
+# {check_id}: {title}
 # Lock accounts with empty passwords
 echo "Locking accounts with empty passwords..."
 for user in $(awk -F: '$2 == "" {{print $1}}' /etc/shadow 2>/dev/null); do
     log_warn "Locking account: $user"
     passwd -l "$user"
 done
-"""
-
-    # NOPASSWD sudo
-    if f.check_id == "IDENT-004":
-        return f"""
-# {f.check_id}: {f.title}
+""",
+    "IDENT-004": """\
+# {check_id}: {title}
 # Remove NOPASSWD from sudoers
 echo "Checking for NOPASSWD sudo rules..."
 for f in /etc/sudoers /etc/sudoers.d/*; do
@@ -313,12 +303,9 @@ for f in /etc/sudoers /etc/sudoers.d/*; do
         fi
     fi
 done
-"""
-
-    # SSH root login
-    if f.check_id == "IDENT-007":
-        return f"""
-# {f.check_id}: {f.title}
+""",
+    "IDENT-007": """\
+# {check_id}: {title}
 # Disable root SSH login
 echo "Disabling root SSH login..."
 if [ -f /etc/ssh/sshd_config ]; then
@@ -327,12 +314,9 @@ if [ -f /etc/ssh/sshd_config ]; then
     sed -i 's/^#PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config
     echo "Run 'systemctl restart sshd' to apply changes"
 fi
-"""
-
-    # Password authentication
-    if f.check_id == "IDENT-008":
-        return f"""
-# {f.check_id}: {f.title}
+""",
+    "IDENT-008": """\
+# {check_id}: {title}
 # Disable SSH password authentication
 echo "Disabling SSH password authentication..."
 if [ -f /etc/ssh/sshd_config ]; then
@@ -341,12 +325,9 @@ if [ -f /etc/ssh/sshd_config ]; then
     sed -i 's/^#PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
     echo "Run 'systemctl restart sshd' to apply changes"
 fi
-"""
-
-    # Sudo wildcard abuse
-    if f.check_id == "IDENT-005":
-        return f"""
-# {f.check_id}: {f.title}
+""",
+    "IDENT-005": """\
+# {check_id}: {title}
 # Remove dangerous sudo wildcard rules
 echo "Checking for dangerous sudo rules..."
 for rule in "vi" "vim" "nano" "find" "python" "perl" "cp" "tar"; do
@@ -355,70 +336,188 @@ for rule in "vi" "vim" "nano" "find" "python" "perl" "cp" "tar"; do
     fi
 done
 echo "Manually review and remove dangerous sudo rules"
-"""
-
-    # System accounts with shells
-    if f.check_id == "IDENT-002":
-        return f"""
-# {f.check_id}: {f.title}
+""",
+    "IDENT-002": """\
+# {check_id}: {title}
 # Set nologin shell for system accounts
 echo "Setting nologin shell for system accounts..."
 awk -F: '$3 < 1000 && $7 !~ /nologin|false/ {{print $1}}' /etc/passwd | while read user; do
     log_warn "Setting nologin for: $user"
     usermod -s /usr/sbin/nologin "$user" 2>/dev/null || echo "Could not modify $user"
 done
-"""
-
-    # PASS_MAX_DAYS
-    if f.check_id == "IDENT-010":
-        return f"""
-# {f.check_id}: {f.title}
+""",
+    "IDENT-010": """\
+# {check_id}: {title}
 # Set password max days to 90
 echo "Setting PASS_MAX_DAYS to 90..."
 if [ -f /etc/login.defs ]; then
     backup_file /etc/login.defs
     sed -i 's/^PASS_MAX_DAYS.*/PASS_MAX_DAYS 90/' /etc/login.defs
 fi
-"""
-
-    # PASS_MIN_DAYS
-    if f.check_id == "IDENT-011":
-        return f"""
-# {f.check_id}: {f.title}
+""",
+    "IDENT-011": """\
+# {check_id}: {title}
 # Set password min days to 1
 echo "Setting PASS_MIN_DAYS to 1..."
 if [ -f /etc/login.defs ]; then
     backup_file /etc/login.defs
     sed -i 's/^PASS_MIN_DAYS.*/PASS_MIN_DAYS 1/' /etc/login.defs
 fi
-"""
-
-    # PASS_WARN_AGE
-    if f.check_id == "IDENT-012":
-        return f"""
-# {f.check_id}: {f.title}
+""",
+    "IDENT-012": """\
+# {check_id}: {title}
 # Set password warn age to 7
 echo "Setting PASS_WARN_AGE to 7..."
 if [ -f /etc/login.defs ]; then
     backup_file /etc/login.defs
     sed -i 's/^PASS_WARN_AGE.*/PASS_WARN_AGE 7/' /etc/login.defs
 fi
-"""
-
-    # Listening services
-    if f.check_id == "NET-001":
-        return f"""
-# {f.check_id}: {f.title}
+""",
+    "NET-001": """\
+# {check_id}: {title}
 # Review and disable unnecessary listening services
 echo "Reviewing listening services..."
 echo "Check running services: systemctl list-units --type=service --state=running"
 echo "Disable unnecessary services with: systemctl disable <service>"
+""",
+    "FS-001": """\
+# {check_id}: {title}
+# Review dangerous SUID binaries
+echo "Reviewing SUID binaries..."
+echo "Known dangerous SUID binaries: python, perl, bash, sh, nmap, vim, nano, etc."
+echo "To remove SUID: chmod u-s <path>"
+""",
+    "FS-003": """\
+# {check_id}: {title}
+# Fix world-writable files
+echo "Finding world-writable files..."
+find / -type f -perm -002 ! -path "/proc/*" ! -path "/sys/*" 2>/dev/null | head -20
+echo "To fix: chmod o-w <path>"
+""",
+    "FS-006": """\
+# {check_id}: {title}
+# Review cron jobs for malicious entries
+echo "Reviewing cron jobs..."
+ls -la /etc/cron.d/ /etc/cron.daily/ /etc/cron.hourly/ /etc/cron.monthly/ /etc/cron.weekly/ 2>/dev/null
+echo "Check /var/spool/cron/ for user crons"
+""",
+    "PROC-003": """\
+# {check_id}: {title}
+# Secure Docker socket
+echo "Checking Docker socket permissions..."
+if [ -S /var/run/docker.sock ]; then
+    ls -la /var/run/docker.sock
+    chmod 660 /var/run/docker.sock
+    chown root:docker /var/run/docker.sock
+fi
+""",
+    "PROC-004": """\
+# {check_id}: {title}
+# Enable AppArmor
+echo "Enabling AppArmor..."
+if command -v aa-status &> /dev/null; then
+    aa-status
+    apparmor_parser -r /etc/apparmor.d/* 2>/dev/null
+fi
+""",
+    "PROC-005": """\
+# {check_id}: {title}
+# Configure SELinux
+echo "Configuring SELinux..."
+if command -v getenforce &> /dev/null; then
+    getenforce
+    setenforce 1
+    sed -i 's/^SELINUX=.*/SELINUX=enforcing/' /etc/selinux/config 2>/dev/null
+fi
+""",
+    "KERN-001": """\
+# {check_id}: {title}
+# Enable ASLR
+echo "Enabling ASLR..."
+echo 2 > /proc/sys/kernel/randomize_va_space
+echo "kernel.randomize_va_space = 2" >> /etc/sysctl.conf
+""",
+    "KERN-002": """\
+# {check_id}: {title}
+# Restrict dmesg
+echo "Restricting dmesg access..."
+echo 1 > /proc/sys/kernel/dmesg_restrict
+echo "kernel.dmesg_restrict = 1" >> /etc/sysctl.conf
+""",
+    "KERN-003": """\
+# {check_id}: {title}
+# Restrict kernel pointer visibility
+echo "Restricting kernel pointers..."
+echo 2 > /proc/sys/kernel/kptr_restrict
+echo "kernel.kptr_restrict = 2" >> /etc/sysctl.conf
+""",
+    "KERN-004": """\
+# {check_id}: {title}
+# Restrict ptrace
+echo "Restricting ptrace..."
+echo 1 > /proc/sys/kernel/yama/ptrace_scope
+echo "kernel.yama.ptrace_scope = 1" >> /etc/sysctl.conf
+""",
+    "LOG-001": """\
+# {check_id}: {title}
+# Enable auditd
+echo "Enabling auditd..."
+if command -v systemctl &> /dev/null; then
+    systemctl enable auditd
+    systemctl start auditd
+fi
+""",
+    "LOG-013": """\
+# {check_id}: {title}
+# Configure remote logging
+echo "Configuring remote logging..."
+if [ -f /etc/rsyslog.conf ]; then
+    backup_file /etc/rsyslog.conf
+    echo "*.* @@logserver.example.com:514" >> /etc/rsyslog.conf
+    systemctl restart rsyslog
+fi
+echo "Configure your syslog server address above"
+""",
+    "PKG-001": """\
+# {check_id}: {title}
+# Apply pending security updates
+echo "Applying security updates..."
+apt update && apt upgrade -y
+echo "Or for your distribution: yum update -y / dnf update -y"
+""",
+    "PKG-003": """\
+# {check_id}: {title}
+# Review and remove untrusted repositories
+echo "Checking package sources..."
+ls -la /etc/apt/sources.list.d/ 2>/dev/null
+cat /etc/apt/sources.list 2>/dev/null
+echo "Remove untrusted repos: rm /etc/apt/sources.d/<file>"
+""",
+    "CRYPTO-001": """\
+# {check_id}: {title}
+# Regenerate weak SSH host keys
+echo "Regenerating SSH host keys..."
+ssh-keygen -A
+systemctl restart sshd
+""",
+}
+
+_FIREWALL_IDS = frozenset(["NET-002", "NET-005", "NET-006"])
+
+_FALLBACK_REMEDIATION = """\
+# {check_id}: {title}
+# Remediation: {remediation}
+echo "Manual remediation needed for {check_id}"
+echo "Finding: {title}"
+echo "Remediation: {remediation}"
 """
 
-    # Firewall
-    if f.check_id in ["NET-002", "NET-005", "NET-006"]:
-        return f"""
-# {f.check_id}: {f.title}
+
+def _generate_remediation_for_finding(f: Finding) -> str:
+    """Generate remediation commands for a specific finding."""
+    if f.check_id in _FIREWALL_IDS:
+        template = """\
+# {check_id}: {title}
 # Enable and configure firewall
 echo "Configuring firewall..."
 if command -v ufw &> /dev/null; then
@@ -433,180 +532,14 @@ elif command -v firewall-cmd &> /dev/null; then
     log_info "firewalld configured"
 fi
 """
+        return template.format(check_id=f.check_id, title=f.title)
 
-    # SUID binaries
-    if f.check_id == "FS-001":
-        return f"""
-# {f.check_id}: {f.title}
-# Review dangerous SUID binaries
-echo "Reviewing SUID binaries..."
-echo "Known dangerous SUID binaries: python, perl, bash, sh, nmap, vim, nano, etc."
-echo "To remove SUID: chmod u-s <path>"
-"""
-
-    # World-writable files
-    if f.check_id == "FS-003":
-        return f"""
-# {f.check_id}: {f.title}
-# Fix world-writable files
-echo "Finding world-writable files..."
-find / -type f -perm -002 ! -path "/proc/*" ! -path "/sys/*" 2>/dev/null | head -20
-echo "To fix: chmod o-w <path>"
-"""
-
-    # Cron jobs
-    if f.check_id == "FS-006":
-        return f"""
-# {f.check_id}: {f.title}
-# Review cron jobs for malicious entries
-echo "Reviewing cron jobs..."
-ls -la /etc/cron.d/ /etc/cron.daily/ /etc/cron.hourly/ /etc/cron.monthly/ /etc/cron.weekly/ 2>/dev/null
-echo "Check /var/spool/cron/ for user crons"
-"""
-
-    # Docker socket
-    if f.check_id == "PROC-003":
-        return f"""
-# {f.check_id}: {f.title}
-# Secure Docker socket
-echo "Checking Docker socket permissions..."
-if [ -S /var/run/docker.sock ]; then
-    ls -la /var/run/docker.sock
-    chmod 660 /var/run/docker.sock
-    chown root:docker /var/run/docker.sock
-fi
-"""
-
-    # AppArmor
-    if f.check_id == "PROC-004":
-        return f"""
-# {f.check_id}: {f.title}
-# Enable AppArmor
-echo "Enabling AppArmor..."
-if command -v aa-status &> /dev/null; then
-    aa-status
-    apparmor_parser -r /etc/apparmor.d/* 2>/dev/null
-fi
-"""
-
-    # SELinux
-    if f.check_id == "PROC-005":
-        return f"""
-# {f.check_id}: {f.title}
-# Configure SELinux
-echo "Configuring SELinux..."
-if command -v getenforce &> /dev/null; then
-    getenforce
-    setenforce 1
-    sed -i 's/^SELINUX=.*/SELINUX=enforcing/' /etc/selinux/config 2>/dev/null
-fi
-"""
-
-    # ASLR
-    if f.check_id == "KERN-001":
-        return f"""
-# {f.check_id}: {f.title}
-# Enable ASLR
-echo "Enabling ASLR..."
-echo 2 > /proc/sys/kernel/randomize_va_space
-echo "kernel.randomize_va_space = 2" >> /etc/sysctl.conf
-"""
-
-    # dmesg restrict
-    if f.check_id == "KERN-002":
-        return f"""
-# {f.check_id}: {f.title}
-# Restrict dmesg
-echo "Restricting dmesg access..."
-echo 1 > /proc/sys/kernel/dmesg_restrict
-echo "kernel.dmesg_restrict = 1" >> /etc/sysctl.conf
-"""
-
-    # kptr restrict
-    if f.check_id == "KERN-003":
-        return f"""
-# {f.check_id}: {f.title}
-# Restrict kernel pointer visibility
-echo "Restricting kernel pointers..."
-echo 2 > /proc/sys/kernel/kptr_restrict
-echo "kernel.kptr_restrict = 2" >> /etc/sysctl.conf
-"""
-
-    # ptrace scope
-    if f.check_id == "KERN-004":
-        return f"""
-# {f.check_id}: {f.title}
-# Restrict ptrace
-echo "Restricting ptrace..."
-echo 1 > /proc/sys/kernel/yama/ptrace_scope
-echo "kernel.yama.ptrace_scope = 1" >> /etc/sysctl.conf
-"""
-
-    # auditd
-    if f.check_id == "LOG-001":
-        return f"""
-# {f.check_id}: {f.title}
-# Enable auditd
-echo "Enabling auditd..."
-if command -v systemctl &> /dev/null; then
-    systemctl enable auditd
-    systemctl start auditd
-fi
-"""
-
-    # Remote logging
-    if f.check_id == "LOG-013":
-        return f"""
-# {f.check_id}: {f.title}
-# Configure remote logging
-echo "Configuring remote logging..."
-if [ -f /etc/rsyslog.conf ]; then
-    backup_file /etc/rsyslog.conf
-    echo "*.* @@logserver.example.com:514" >> /etc/rsyslog.conf
-    systemctl restart rsyslog
-fi
-echo "Configure your syslog server address above"
-"""
-
-    # Pending updates
-    if f.check_id == "PKG-001":
-        return f"""
-# {f.check_id}: {f.title}
-# Apply pending security updates
-echo "Applying security updates..."
-apt update && apt upgrade -y
-echo "Or for your distribution: yum update -y / dnf update -y"
-"""
-
-    # Untrusted repos
-    if f.check_id == "PKG-003":
-        return f"""
-# {f.check_id}: {f.title}
-# Review and remove untrusted repositories
-echo "Checking package sources..."
-ls -la /etc/apt/sources.list.d/ 2>/dev/null
-cat /etc/apt/sources.list 2>/dev/null
-echo "Remove untrusted repos: rm /etc/apt/sources.d/<file>"
-"""
-
-    # Weak SSH keys
-    if f.check_id == "CRYPTO-001":
-        return f"""
-# {f.check_id}: {f.title}
-# Regenerate weak SSH host keys
-echo "Regenerating SSH host keys..."
-ssh-keygen -A
-systemctl restart sshd
-"""
-
-    # Default return for unhandled cases
-    return f"""
-# {f.check_id}: {f.title}
-# Remediation: {f.remediation}
-echo "Manual remediation needed for {f.check_id}"
-echo "Finding: {f.title}"
-echo "Remediation: {f.remediation}"
-"""
+    template = _REMEDIATION_SCRIPTS.get(f.check_id, _FALLBACK_REMEDIATION)
+    return template.format(
+        check_id=f.check_id,
+        title=f.title,
+        remediation=f.remediation,
+    )
 
 
 def calculate_security_score(findings: list[Finding]) -> int:

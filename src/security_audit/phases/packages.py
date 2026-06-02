@@ -69,7 +69,7 @@ def check_last_update() -> list[Finding]:
 def _get_days_since_last_update() -> int | None:
     """Get days since system was last fully updated (apt/yum upgrade)."""
 
-    for cmd, cache_file in [
+    for cmd, _ in [
         ("ls -la /var/log/dpkg.log 2>/dev/null", "/var/log/dpkg.log"),
         ("ls -la /var/log/yum.log 2>/dev/null", "/var/log/yum.log"),
         ("ls -la /var/log/apt/term.log 2>/dev/null", "/var/log/apt/term.log"),

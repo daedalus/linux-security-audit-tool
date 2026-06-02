@@ -141,9 +141,9 @@ def check_syslog_config() -> list[Finding]:
     """Check syslog configuration."""
     findings = []
 
-    stdout, _, rc = run_command("cat /etc/rsyslog.conf 2>/dev/null | head -20")
+    _, _, rc = run_command("cat /etc/rsyslog.conf 2>/dev/null | head -20")
     if rc != 0:
-        stdout, _, rc = run_command(
+        _, _, rc = run_command(
             "cat /etc/syslog-ng/syslog-ng.conf 2>/dev/null | head -20"
         )
 

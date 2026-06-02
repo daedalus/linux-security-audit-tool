@@ -22,7 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   accounts. Collapse multiple extra accounts into a single finding instead of
   duplicating the check_id per entry.
 - **NET-001**: Differentiate severity by port. Well-known ports (22, 80, 443,
-  8443) produce INFO; sensitive ports (23, 514, 3306, 5432, 6379, 27017, 9200)
+  8443\) produce INFO; sensitive ports (23, 514, 3306, 5432, 6379, 27017, 9200)
   produce HIGH; all others remain MEDIUM. Exposed as `EXPECTED_PORTS` /
   `SENSITIVE_PORTS` module-level sets for runtime overrides.
 - **shell=True**: Added list-form argument support to `run_command`. User/machine
@@ -110,3 +110,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Initial release: project scaffolding, core audit engine, `run_command`
   utility, `Finding`/`Severity` models.
+
+[0.1.0]: https://github.com/daedalus/linux-security-audit-tool/releases/tag/v0.1.0
+[0.1.1]: https://github.com/daedalus/linux-security-audit-tool/releases/tag/v0.1.1
+[0.1.2]: https://github.com/daedalus/linux-security-audit-tool/releases/tag/v0.1.2
+[0.1.3]: https://github.com/daedalus/linux-security-audit-tool/releases/tag/v0.1.3
+[0.1.4]: https://github.com/daedalus/linux-security-audit-tool/releases/tag/v0.1.4
+[0.1.5]: https://github.com/daedalus/linux-security-audit-tool/releases/tag/v0.1.5
+[0.1.6]: https://github.com/daedalus/linux-security-audit-tool/releases/tag/v0.1.6
+[0.1.7]: https://github.com/daedalus/linux-security-audit-tool/releases/tag/v0.1.7
+[0.1.8]: https://github.com/daedalus/linux-security-audit-tool/releases/tag/v0.1.8
+[0.1.9]: https://github.com/daedalus/linux-security-audit-tool/releases/tag/v0.1.9

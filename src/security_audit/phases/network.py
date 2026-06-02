@@ -512,53 +512,10 @@ def check_nfs_world_accessible_shares() -> list[Finding]:
 
 
 @cached_check("check_samba_guest_access")
-def check_samba_guest_access() -> list[Finding]:
-    """Check Samba/CIFS configuration for anonymous/guest access."""
-    findings: list[Finding] = []
-
-    stdout, _, rc = run_command("cat /etc/samba/smb.conf 2>/dev/null")
-    if rc != 0 or not stdout:
-        return findings
-
-    current_share = None
-    share_options: dict[str, str] = {}
-    global_options: dict[str, str] = {}
-    in_global = False
-
-    for line in stdout.splitlines():
-        stripped = line.strip()
-        if not stripped or stripped.startswith("#") or stripped.startswith(";"):
-            continue
-
-        if stripped.startswith("["):
-            # Process previous share if any
-            if current_share and current_share.lower() not in (
-                "[global]",
-                "[printers]",
-                "[homes]",
-            ):
-                _check_samba_share(current_share, share_options, findings)
-            current_share = stripped
-            share_options = {}
-            in_global = stripped.lower() == "[global]"
-        elif "=" in stripped:
-            key, _, val = stripped.partition("=")
-            key = key.strip().lower()
-            val = val.strip().lower()
-            if in_global:
-                global_options[key] = val
-            else:
-                share_options[key] = val
-
-    # Process the last share
-    if current_share and current_share.lower() not in (
-        "[global]",
-        "[printers]",
-        "[homes]",
-    ):
-        _check_samba_share(current_share, share_options, findings)
-
-    # Check for global insecure settings
+def _check_samba_global(
+    global_options: dict[str, str], findings: list[Finding]
+) -> None:
+    """Check Samba global config for insecure settings."""
     security = global_options.get("security", "")
     if security == "share":
         findings.append(
@@ -589,6 +546,52 @@ def check_samba_guest_access() -> list[Finding]:
             )
         )
 
+
+def check_samba_guest_access() -> list[Finding]:
+    """Check Samba/CIFS configuration for anonymous/guest access."""
+    findings: list[Finding] = []
+
+    stdout, _, rc = run_command("cat /etc/samba/smb.conf 2>/dev/null")
+    if rc != 0 or not stdout:
+        return findings
+
+    current_share = None
+    share_options: dict[str, str] = {}
+    global_options: dict[str, str] = {}
+    in_global = False
+
+    for line in stdout.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or stripped.startswith(";"):
+            continue
+
+        if stripped.startswith("["):
+            if current_share and current_share.lower() not in (
+                "[global]",
+                "[printers]",
+                "[homes]",
+            ):
+                _check_samba_share(current_share, share_options, findings)
+            current_share = stripped
+            share_options = {}
+            in_global = stripped.lower() == "[global]"
+        elif "=" in stripped:
+            key, _, val = stripped.partition("=")
+            key = key.strip().lower()
+            val = val.strip().lower()
+            if in_global:
+                global_options[key] = val
+            else:
+                share_options[key] = val
+
+    if current_share and current_share.lower() not in (
+        "[global]",
+        "[printers]",
+        "[homes]",
+    ):
+        _check_samba_share(current_share, share_options, findings)
+
+    _check_samba_global(global_options, findings)
     return findings
 
 
@@ -631,11 +634,58 @@ def _check_samba_share(
 
 
 @cached_check("check_apache_insecure_config")
+def _check_apache_indexes(
+    content: str, conf_file: str, indexes_files: list[str]
+) -> None:
+    """Check if an Apache config file has Options Indexes enabled."""
+    for line in content.splitlines():
+        stripped = line.strip()
+        if re.search(r"Options\b.*\bIndexes\b", stripped, re.IGNORECASE):
+            if not stripped.startswith("#") and not re.search(
+                r"-\s*Indexes\b", stripped, re.IGNORECASE
+            ):
+                indexes_files.append(conf_file)
+                break
+
+
+_APACHE_BLOCK_OPEN_RE = re.compile(r"<(Location|Directory|Files)\b", re.IGNORECASE)
+_APACHE_BLOCK_CLOSE_RE = re.compile(r"</(Location|Directory|Files)>", re.IGNORECASE)
+
+
+def _check_apache_no_auth(
+    content: str, conf_file: str, no_auth_files: list[str]
+) -> None:
+    """Check if an Apache config has Location/Directory/Files without auth."""
+    in_location = False
+    has_auth = False
+    block_lines: list[str] = []
+    for line in content.splitlines():
+        stripped = line.strip()
+        if _APACHE_BLOCK_OPEN_RE.search(stripped):
+            in_location = True
+            has_auth = False
+            block_lines = [stripped]
+        elif _APACHE_BLOCK_CLOSE_RE.search(stripped):
+            if in_location and not has_auth:
+                block_text = "\n".join(block_lines)
+                if (
+                    "Require" not in block_text
+                    and "AuthType" not in block_text
+                    and "Order deny,allow" in block_text
+                ):
+                    no_auth_files.append(conf_file)
+            in_location = False
+            block_lines = []
+        elif in_location:
+            block_lines.append(stripped)
+            if "AuthType" in stripped:
+                has_auth = True
+
+
 def check_apache_insecure_config() -> list[Finding]:
     """Check Apache web server for insecure configuration (open directory listing, no auth)."""
     findings: list[Finding] = []
 
-    # Locate Apache config files
     stdout, _, rc = run_command(
         "find /etc/apache2 /etc/httpd -name '*.conf' -type f 2>/dev/null"
     )
@@ -650,46 +700,8 @@ def check_apache_insecure_config() -> list[Finding]:
         content, _, frc = run_command(["cat", conf_file])
         if frc != 0 or not content:
             continue
-
-        # Check for Options Indexes (directory listing enabled)
-        for line in content.splitlines():
-            stripped = line.strip()
-            if re.search(r"Options\b.*\bIndexes\b", stripped, re.IGNORECASE):
-                if not stripped.startswith("#") and not re.search(
-                    r"-\s*Indexes\b", stripped, re.IGNORECASE
-                ):
-                    indexes_files.append(conf_file)
-                    break
-
-        # Check for locations/directories without any AuthType (unauthenticated access)
-        in_location = False
-        has_auth = False
-        block_lines: list[str] = []
-        for line in content.splitlines():
-            stripped = line.strip()
-            if re.search(r"<(Location|Directory|Files)\b", stripped, re.IGNORECASE):
-                in_location = True
-                has_auth = False
-                block_lines = [stripped]
-            elif re.search(r"</(Location|Directory|Files)>", stripped, re.IGNORECASE):
-                if in_location and not has_auth:
-                    # Only flag if it requires authentication context (has Require or auth directives)
-                    block_text = "\n".join(block_lines)
-                    if (
-                        re.search(r"\bRequire\b", block_text, re.IGNORECASE) is None
-                        and re.search(r"\bAuthType\b", block_text, re.IGNORECASE)
-                        is None
-                        and re.search(
-                            r"\bOrder\s+deny,allow\b", block_text, re.IGNORECASE
-                        )
-                    ):
-                        no_auth_files.append(conf_file)
-                in_location = False
-                block_lines = []
-            elif in_location:
-                block_lines.append(stripped)
-                if re.search(r"\bAuthType\b", stripped, re.IGNORECASE):
-                    has_auth = True
+        _check_apache_indexes(content, conf_file, indexes_files)
+        _check_apache_no_auth(content, conf_file, no_auth_files)
 
     if indexes_files:
         evidence = "\n".join(indexes_files)

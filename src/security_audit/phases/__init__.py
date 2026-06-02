@@ -22,7 +22,7 @@ from .reporting import (
 )
 
 if TYPE_CHECKING:
-    from ..core import AuditContext, Finding
+    from ..core import AuditContext, Finding  # noqa: TC001,TC002
 
 __all__ = [
     "gather_context",

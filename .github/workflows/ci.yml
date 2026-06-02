@@ -56,11 +56,23 @@ jobs:
       - name: Run ruff format
         run: ruff format --check src/ tests/
 
-      - name: Run ruff
-        run: ruff check src/ tests/
+      - name: Run mdformat
+        run: mdformat --check .
 
-      - name: Run mypy
-        run: mypy src/
+      - name: Run prospector (ruff check + mypy + pylint with blending)
+        run: prospector --with-tool ruff --with-tool mypy --with-tool pylint src/
+
+      - name: Run opengrep
+        run: opengrep --config=auto --severity=ERROR src/ || echo "opengrep not installed (standalone binary)"
+
+      - name: Run vulture (dead code detection)
+        run: vulture --min-confidence 90 src/
+
+      - name: Run lizard (code complexity analysis)
+        run: lizard --CCN=10 src/
+
+      - name: Run impactguard (API impact analysis)
+        run: impactguard extract src/ --output /dev/null
 
   build:
     runs-on: ubuntu-latest

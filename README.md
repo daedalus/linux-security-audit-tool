@@ -6,13 +6,13 @@ For all the checks to effectively be done this tool it needs root access.
 
 [![PyPI](https://img.shields.io/pypi/v/linux-security-audit-tool.svg)](https://pypi.org/project/linux-security-audit-tool/)
 [![Python](https://img.shields.io/pypi/pyversions/linux-security-audit-tool.svg)](https://pypi.org/project/linux-security-audit-tool/)
-[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+[![Coverage](https://codecov.io/gh/daedalus/linux-security-audit-tool/branch/master/graph/badge.svg)](https://codecov.io/gh/daedalus/linux-security-audit-tool)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/master/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/daedalus/linux-security-audit-tool)
 
 ## Install
 
 ```bash
-python3 -m venv venv
-source venv/bin/activate
 pip install linux-security-audit-tool
 ```
 
@@ -47,38 +47,18 @@ Commands:
 
 ## Audit Command Options
 
-- `--output`, `-o FILE`            - Output file for markdown report
-- `--phases`, `-p [0-9]`          - Specific phases to run (can be repeated)
-- `--quiet`, `-q`                 - Suppress detailed output
-- `--verbose`, `-v`               - Show descriptions and remediation
-- `--debug`, `-d`                 - Show low-level commands being executed
-- `--remediate-all`, `-r`         - Generate remediation script for all findings
-- `--remediate-only-critical`     - Generate remediation script for CRITICAL findings only
-- `--remediate-non-critical`      - Generate remediation script for non-CRITICAL findings
-- `--remediate-script FILE`       - Save remediation script to file
-- `--pdf FILE`                    - Generate PDF executive report
-- `--cache`                       - Enable caching of check results
-- `--cache-ttl INTEGER`           - Cache TTL in seconds (default: 3600)
-
-## Development
-
-```bash
-git clone https://github.com/daedalus/linux-security-audit-tool.git
-cd linux-security-audit-tool
-pip install -e ".[test]"
-
-# run tests
-pytest
-
-# format
-ruff format src/ tests/
-
-# lint
-ruff check src/ tests/
-
-# type check
-mypy src/
-```
+- `--output`, `-o FILE` - Output file for markdown report
+- `--phases`, `-p [0-9]` - Specific phases to run (can be repeated)
+- `--quiet`, `-q` - Suppress detailed output
+- `--verbose`, `-v` - Show descriptions and remediation
+- `--debug`, `-d` - Show low-level commands being executed
+- `--remediate-all`, `-r` - Generate remediation script for all findings
+- `--remediate-only-critical` - Generate remediation script for CRITICAL findings only
+- `--remediate-non-critical` - Generate remediation script for non-CRITICAL findings
+- `--remediate-script FILE` - Save remediation script to file
+- `--pdf FILE` - Generate PDF executive report
+- `--cache` - Enable caching of check results
+- `--cache-ttl INTEGER` - Cache TTL in seconds (default: 3600)
 
 ## API
 
@@ -105,3 +85,33 @@ The tool performs security checks across 9 phases:
 - **Phase 6**: Logging & Monitoring (auditd, logs, syslog)
 - **Phase 7**: Package & Update Hygiene (updates, repos)
 - **Phase 8**: Cryptographic Posture (SSH keys, TLS, password hashing)
+
+## Development
+
+```bash
+git clone https://github.com/daedalus/linux-security-audit-tool.git
+cd linux-security-audit-tool
+pip install -e ".[test]"
+
+# run tests
+pytest
+
+# format
+ruff format src/ tests/
+
+# format markdown
+mdformat .
+
+# lint + type check (prospector runs ruff check + mypy + pylint together)
+prospector --with-tool ruff --with-tool mypy --with-tool pylint src/
+opengrep --config=auto --severity=ERROR src/
+
+# find unused code (vulture reports dead code with 90%+ confidence)
+vulture --min-confidence 90 src/
+
+# analyze code complexity (lizard reports cyclomatic complexity, NLOC, etc.)
+lizard src/ --CCN 10
+
+# track API impact (impactguard analyzes how staged changes affect public API)
+impactguard-check-staged
+```
