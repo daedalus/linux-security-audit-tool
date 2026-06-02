@@ -36,31 +36,31 @@ DANGEROUS_SUID = [
 # when set on any executable (effective+inheritable).
 # See capabilities(7) for the full reference.
 ESCALATION_CAPS = {
-    "cap_setuid",      # spawn shell with arbitrary UID 0
-    "cap_setgid",      # spawn shell with arbitrary GID 0
-    "cap_sys_admin",   # mount, namespace, bpf — kernel-level access
+    "cap_setuid",  # spawn shell with arbitrary UID 0
+    "cap_setgid",  # spawn shell with arbitrary GID 0
+    "cap_sys_admin",  # mount, namespace, bpf — kernel-level access
     "cap_sys_ptrace",  # ptrace any process, read memory
     "cap_dac_override",  # bypass file permission checks
     "cap_dac_read_search",  # read any file
-    "cap_fowner",     # change file ownership arbitrarily
-    "cap_fsetid",     # set arbitrary GID on created files
-    "cap_setpcap",    # grant capabilities to other processes
+    "cap_fowner",  # change file ownership arbitrarily
+    "cap_fsetid",  # set arbitrary GID on created files
+    "cap_setpcap",  # grant capabilities to other processes
     "cap_net_admin",  # configure network (firewall, raw sockets)
-    "cap_sys_module", # load kernel modules
+    "cap_sys_module",  # load kernel modules
     "cap_sys_rawio",  # raw I/O, memory access
 }
 
 # Capabilities worth noting but lower severity
 NOTEWORTHY_CAPS = {
-    "cap_net_raw",       # raw sockets (ping, sniff)
+    "cap_net_raw",  # raw sockets (ping, sniff)
     "cap_net_bind_service",  # bind to privileged ports <1024
-    "cap_sys_boot",      # reboot
-    "cap_sys_time",      # system clock manipulation
-    "cap_kill",          # signal any process
+    "cap_sys_boot",  # reboot
+    "cap_sys_time",  # system clock manipulation
+    "cap_kill",  # signal any process
     "cap_linux_immutable",  # set FS_APPEND_FL / FS_IMMUTABLE_FL
-    "cap_ipc_lock",      # lock memory (side-channel, swap bypass)
-    "cap_sys_nice",      # raise priority, set real-time scheduling
-    "cap_audit_control", # manipulate audit subsystem
+    "cap_ipc_lock",  # lock memory (side-channel, swap bypass)
+    "cap_sys_nice",  # raise priority, set real-time scheduling
+    "cap_audit_control",  # manipulate audit subsystem
 }
 
 
@@ -99,9 +99,7 @@ def check_capabilities() -> list[Finding]:
     """
     findings: list[Finding] = []
 
-    stdout, _, rc = run_command(
-        "getcap -r / 2>/dev/null | sort"
-    )
+    stdout, _, rc = run_command("getcap -r / 2>/dev/null | sort")
     if rc != 0 or not stdout:
         return findings
 
@@ -261,6 +259,8 @@ def check_critical_file_permissions() -> list[Finding]:
         "/etc/shadow": ("root", "shadow", "0600"),
         "/etc/gshadow": ("root", "root", "0600"),
         "/etc/sudoers": ("root", "root", "0440"),
+        "/etc/passwd": ("root", "root", "0644"),
+        "/etc/group": ("root", "root", "0644"),
     }
 
     for filepath, (owner, group, perms) in critical_files.items():
@@ -279,6 +279,11 @@ def check_critical_file_permissions() -> list[Finding]:
                     continue
                 if filepath in ["/etc/shadow", "/etc/gshadow"] and actual_perms in [
                     "-rw-------"
+                ]:
+                    continue
+                if filepath in ["/etc/passwd", "/etc/group"] and actual_perms in [
+                    "-rw-r--r--",
+                    "-rw-rw-r--",
                 ]:
                     continue
                 findings.append(
@@ -327,6 +332,46 @@ def check_cron_jobs() -> list[Finding]:
                         phase="Phase 3",
                     )
                 )
+
+        # Check permissions on individual cron files
+        if path.endswith("/"):
+            # Directory — check its children
+            files_out, _, frc = run_command(f"find {path} -type f 2>/dev/null")
+            if frc == 0 and files_out:
+                for fpath in files_out.strip().split("\n"):
+                    if not fpath:
+                        continue
+                    fstat, _, src = run_command(["stat", "-c", "%U %a", fpath])
+                    if src != 0 or not fstat:
+                        continue
+                    owner, perms = fstat.split()
+                    if owner != "root":
+                        findings.append(
+                            Finding(
+                                severity=Severity.HIGH,
+                                check_id="FS-007",
+                                title="Cron Script Not Owned by Root",
+                                description=f"{fpath} owned by {owner}, expected root",
+                                evidence=f"stat: {fstat}",
+                                impact="Non-root user can modify cron script, leading to privilege escalation on execution",
+                                remediation=f"chown root:root {fpath}",
+                                phase="Phase 3",
+                            )
+                        )
+                    # World-writable cron script is a direct injection vector
+                    if len(perms) >= 3 and perms[-1] in ("2", "3", "6", "7"):
+                        findings.append(
+                            Finding(
+                                severity=Severity.CRITICAL,
+                                check_id="FS-007",
+                                title="World-Writable Cron Script",
+                                description=f"{fpath} has permissions {perms}",
+                                evidence=f"stat: {fstat}",
+                                impact="Any user can modify this cron script to execute arbitrary code as the cron owner",
+                                remediation=f"chmod o-w {fpath}",
+                                phase="Phase 3",
+                            )
+                        )
 
     stdout, _, rc = run_command("crontab -l 2>/dev/null")
     if rc == 0 and stdout and stdout.strip():
@@ -421,6 +466,153 @@ def check_backup_files() -> list[Finding]:
                 phase="Phase 3",
             )
         )
+
+    return findings
+
+
+@cached_check("check_ld_preload")
+def check_ld_preload() -> list[Finding]:
+    """Check for writable ld.so preload configuration.
+
+    A writable /etc/ld.so.preload lets an attacker inject a shared library
+    into every setuid and non-setuid process on the system — a classic
+    privilege-persistence vector.
+    """
+    findings: list[Finding] = []
+
+    preload_files = [
+        "/etc/ld.so.preload",
+        "/etc/ld.so.conf",
+        "/etc/ld.so.conf.d/",
+    ]
+
+    for path in preload_files:
+        stdout, _, rc = run_command(["ls", "-la", path])
+        if rc != 0 or not stdout:
+            continue
+        parts = stdout.split()
+        if len(parts) < 4:
+            continue
+        perms = parts[0]
+        owner = parts[2]
+        if owner != "root":
+            findings.append(
+                Finding(
+                    severity=Severity.HIGH,
+                    check_id="FS-017",
+                    title=f"{path} Not Owned by Root",
+                    description=f"Owner is {owner}, expected root",
+                    evidence=stdout,
+                    impact="Non-root owner can modify dynamic linker configuration, enabling global code injection",
+                    remediation=f"chown root:root {path}",
+                    phase="Phase 3",
+                )
+            )
+        # world-writable or group-writable is dangerous
+        if "w" in perms[4:6] or "w" in perms[7:9]:
+            findings.append(
+                Finding(
+                    severity=Severity.HIGH,
+                    check_id="FS-017",
+                    title=f"Writable Dynamic Linker Config: {path}",
+                    description=f"Permissions: {perms}",
+                    evidence=stdout,
+                    impact="Any user can modify dynamic linker configuration, enabling global code injection across all processes",
+                    remediation=f"chmod go-w {path}",
+                    phase="Phase 3",
+                )
+            )
+        # Existence of /etc/ld.so.preload alone is suspicious unless intentional
+        if path == "/etc/ld.so.preload" and rc == 0:
+            findings.append(
+                Finding(
+                    severity=Severity.MEDIUM,
+                    check_id="FS-017",
+                    title="/etc/ld.so.preload Exists",
+                    description="Preload file exists — verify it is intentional",
+                    evidence=stdout,
+                    impact="Libraries listed here are loaded into every process; malicious additions affect the entire system",
+                    remediation="Review contents and remove if unused: echo > /etc/ld.so.preload",
+                    phase="Phase 3",
+                )
+            )
+
+    return findings
+
+
+SECRET_PATTERNS: dict[str, str] = {
+    "AKIA[0-9A-Z]{16}": "AWS Access Key ID",
+    "-----BEGIN RSA PRIVATE KEY-----": "RSA Private Key",
+    "-----BEGIN EC PRIVATE KEY-----": "EC Private Key",
+    "-----BEGIN OPENSSH PRIVATE KEY-----": "OpenSSH Private Key",
+    "-----BEGIN DSA PRIVATE KEY-----": "DSA Private Key",
+    "ghp_[0-9a-zA-Z]{36}": "GitHub Personal Access Token",
+    "gho_[0-9a-zA-Z]{36}": "GitHub OAuth Token",
+    "xox[bpsa]-[0-9a-zA-Z-]+": "Slack Token",
+    "sk_live_[0-9a-z]+": "Stripe Live Secret Key",
+    "pk_live_[0-9a-z]+": "Stripe Live Publishable Key",
+}
+
+SECRET_SCAN_PATHS = [
+    "/root/.bash_history",
+    "/root/.zsh_history",
+    "/home/*/.bash_history",
+    "/home/*/.zsh_history",
+    "/root/.netrc",
+    "/home/*/.netrc",
+    "/root/.env",
+    "/home/*/.env",
+    "/etc/environment",
+    "/etc/profile.d/*.sh",
+]
+
+
+@cached_check("check_exposed_secrets")
+def check_exposed_secrets() -> list[Finding]:
+    """Scan for exposed secrets and credentials in readable files.
+
+    Checks shell histories, .env files, and configuration files for
+    high-value credential patterns (AWS keys, API tokens, private keys).
+    """
+    findings: list[Finding] = []
+
+    for pattern_path in SECRET_SCAN_PATHS:
+        stdout, _, rc = run_command(f"ls -la {pattern_path} 2>/dev/null | head -5")
+        if rc != 0 or not stdout:
+            continue
+
+        for line in stdout.strip().split("\n"):
+            parts = line.split()
+            if len(parts) < 9:
+                continue
+            fpath = parts[-1]
+            fperms = parts[0]
+            # Only scan files readable by others or by group
+            if "r" not in fperms[4:5] and "r" not in fperms[7:8]:
+                continue
+
+            content, _, crc = run_command(["cat", fpath])
+            if crc != 0 or not content:
+                continue
+
+            for pattern, label in SECRET_PATTERNS.items():
+                import re
+
+                matches = re.findall(pattern, content, re.MULTILINE)
+                if matches:
+                    findings.append(
+                        Finding(
+                            severity=Severity.HIGH,
+                            check_id="FS-018",
+                            title=f"Exposed Credential: {label}",
+                            description=f"Found {len(matches)} match(es) of {label} in {fpath}",
+                            evidence=f"File: {fpath}\nPermissions: {fperms}\nPattern: {label}",
+                            impact="Exposed credentials can be used to access cloud services, source control, or payment systems",
+                            remediation=f"Remove the credential from {fpath}. Rotate the compromised key immediately.",
+                            phase="Phase 3",
+                        )
+                    )
+                    break
 
     return findings
 
@@ -535,6 +727,114 @@ def check_mount_options() -> list[Finding]:
     return findings
 
 
+@cached_check("check_nfs_exports")
+def check_nfs_exports() -> list[Finding]:
+    """Check NFS export (/etc/exports) for dangerous options.
+
+    Insecure NFS exports allow privilege escalation and data access:
+      - no_root_squash  → remote root can write as local root
+      - insecure        → clients can connect from unprivileged ports
+      - world-readable  → no subnet restriction
+    """
+    findings: list[Finding] = []
+
+    stdout, _, rc = run_command(["cat", "/etc/exports"])
+    if rc != 0 or not stdout:
+        return findings
+
+    for line in stdout.strip().split("\n"):
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        if "no_root_squash" in stripped:
+            findings.append(
+                Finding(
+                    severity=Severity.CRITICAL,
+                    check_id="FS-019",
+                    title="NFS Export With no_root_squash",
+                    description=f"Dangerous export: {stripped}",
+                    evidence=stripped,
+                    impact="Remote root can write to the exported filesystem as local root, enabling privilege escalation across the network",
+                    remediation='Remove "no_root_squash" from the export; use "root_squash" instead',
+                    phase="Phase 3",
+                )
+            )
+        if "insecure" in stripped:
+            findings.append(
+                Finding(
+                    severity=Severity.MEDIUM,
+                    check_id="FS-019",
+                    title="NFS Export With 'insecure' Option",
+                    description=f"Export allows connections from unprivileged ports: {stripped}",
+                    evidence=stripped,
+                    impact="Non-root users on clients can mount NFS shares, widening the attack surface",
+                    remediation='Replace "insecure" with "secure" in the export options',
+                    phase="Phase 3",
+                )
+            )
+        # No host restriction (world-accessible)
+        parts = stripped.split()
+        if len(parts) >= 2:
+            clients = parts[1].split("(")[0]  # strip options like *(rw) → *
+            if clients in ("*", "0.0.0.0/0", "::/0"):
+                findings.append(
+                    Finding(
+                        severity=Severity.HIGH,
+                        check_id="FS-019",
+                        title="NFS Export World-Accessible",
+                        description=f"Export is accessible to any client: {stripped}",
+                        evidence=stripped,
+                        impact="Anyone on the network can mount this NFS share",
+                        remediation="Restrict the export to specific IP ranges or hostnames",
+                        phase="Phase 3",
+                    )
+                )
+
+    return findings
+
+
+@cached_check("check_smb_config")
+def check_smb_config() -> list[Finding]:
+    """Check Samba configuration for security issues."""
+    findings: list[Finding] = []
+
+    stdout, _, rc = run_command(
+        "grep -E '^\\s*security\\s*=' /etc/samba/smb.conf 2>/dev/null"
+    )
+    if rc == 0 and stdout and "security = user" not in stdout:
+        findings.append(
+            Finding(
+                severity=Severity.HIGH,
+                check_id="FS-020",
+                title="Samba Security Mode Not 'user'",
+                description=f"Samba security mode is not 'user': {stdout.strip()}",
+                evidence=stdout.strip(),
+                impact="Weak Samba security modes can allow anonymous or share-level access",
+                remediation="Set 'security = user' in /etc/samba/smb.conf and use local authentication",
+                phase="Phase 3",
+            )
+        )
+
+    stdout, _, rc = run_command(
+        "grep -E '^\\s*guest\\s+ok\\s*=\\s*yes' /etc/samba/smb.conf 2>/dev/null"
+    )
+    if rc == 0 and stdout.strip():
+        findings.append(
+            Finding(
+                severity=Severity.HIGH,
+                check_id="FS-020",
+                title="Samba Guest Access Enabled",
+                description="Found shares with guest access enabled",
+                evidence=stdout.strip()[:500],
+                impact="Unauthenticated users can access Samba shares",
+                remediation="Set 'guest ok = no' on all Samba shares",
+                phase="Phase 3",
+            )
+        )
+
+    return findings
+
+
 def run_filesystem_checks() -> list[Finding]:
     """Run all file system and permissions checks."""
     findings = []
@@ -550,7 +850,11 @@ def run_filesystem_checks() -> list[Finding]:
     findings.extend(check_ssh_private_key_permissions())
     findings.extend(check_tmp_sensitive_files())
     findings.extend(check_backup_files())
+    findings.extend(check_ld_preload())
+    findings.extend(check_exposed_secrets())
     findings.extend(check_sudoers_integrity())
     findings.extend(check_mount_options())
+    findings.extend(check_nfs_exports())
+    findings.extend(check_smb_config())
 
     return findings

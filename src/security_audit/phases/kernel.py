@@ -742,6 +742,128 @@ def check_secureboot() -> list[Finding]:
     return findings
 
 
+# Known-vulnerable kernel version ranges (simplified as (major, minor, patch, label))
+# Only the most impactful LPE/LPE-prerequisite vulns that have public exploits.
+_KNOWN_VULNERABLE_KERNELS: list[tuple[int, int, int, str]] = [
+    (6, 2, 0, "CVE-2022-0847 (Dirty Pipe) — affects 5.8–6.2"),
+    (5, 19, 0, "CVE-2022-1786 (BRLTTY race) — 5.8–5.19"),
+    (5, 18, 0, "CVE-2024-1086 (nf_tables use-after-free) — 3.15–6.8"),
+    (5, 15, 0, "CVE-2023-0386 (overlayfs privilege escalation) — 5.11–5.15"),
+    (5, 15, 0, "CVE-2023-3269 (stack clobber in perf) — 5.15–6.4"),
+    (5, 14, 0, "CVE-2022-0995 (watch queue LPE) — 5.8–5.14"),
+    (5, 14, 0, "CVE-2022-25636 (nf_dup_netdev OOB) — 5.5–5.14"),
+    (5, 13, 0, "CVE-2021-22555 (netfilter heap write) — 2.6–5.13"),
+    (5, 14, 0, "CVE-2022-2588 (cls_route use-after-free) — 5.8–5.14"),
+    (5, 11, 0, "CVE-2021-3493 (overlayfs LPE) — 5.11–5.13"),
+    (5, 10, 0, "CVE-2021-22555 (netfilter heap write) — up to 5.10"),
+    (5, 10, 0, "CVE-2022-0847 (Dirty Pipe patch range) — backported to 5.10"),
+    (5, 4, 0, "CVE-2021-33909 (seccomp_cgroup no_new_privs bypass) — 5.0–5.4"),
+    (4, 19, 0, "CVE-2021-3490 (eBPF ALU32 bounds tracking) — 5.7–5.11"),
+    (4, 15, 0, "CVE-2021-22555 (netfilter heap write) — up to 4.15"),
+    (4, 14, 0, "CVE-2022-2586 (nft_set elem use-after-free) — 4.0–4.14"),
+    (4, 10, 0, "Dirty COW (CVE-2016-5195) — all 2.x and 3.x, early 4.x"),
+    (3, 10, 0, "CVE-2017-1000112 (Dirty COW variant) — up to 4.12"),
+]
+
+# Ranges where at least one fix-backport exists; use a wider range for safety.
+# Each entry is (from, to, description).
+_VULNERABLE_RANGES: list[tuple[str, str, str]] = [
+    ("2.6", "4.14", "CVE-2022-2586 (nft_set elem) — 4.0–4.14"),
+    ("3.15", "5.14", "CVE-2022-2588 (cls_route) — 5.8–5.14"),
+    ("3.15", "6.8", "CVE-2024-1086 (nf_tables) — 3.15–6.8"),
+    ("4.0", "4.14", "CVE-2022-2586 (nft_set elem) — 4.0–4.14"),
+    ("5.0", "5.4", "CVE-2021-33909 (seccomp_cgroup) — 5.0–5.4"),
+    ("5.5", "5.14", "CVE-2022-25636 (nf_dup_netdev) — 5.5–5.14"),
+    ("5.7", "5.11", "CVE-2021-3490 (eBPF ALU32) — 5.7–5.11"),
+    ("5.8", "5.14", "CVE-2022-0995 (watch queue) — 5.8–5.14"),
+    ("5.8", "5.14", "CVE-2022-2588 (cls_route) — 5.8–5.14"),
+    ("5.8", "6.2", "CVE-2022-0847 (Dirty Pipe) — 5.8–6.2"),
+    ("5.11", "6.8", "CVE-2024-1086 (nf_tables) — 3.15–6.8"),
+    ("5.11", "5.13", "CVE-2021-3493 (overlayfs) — 5.11–5.13"),
+    ("5.11", "5.15", "CVE-2023-0386 (overlayfs) — 5.11–5.15"),
+    ("5.15", "6.4", "CVE-2023-3269 (perf stack) — 5.15–6.4"),
+    ("5.8", "5.19", "CVE-2022-1786 (BRLTTY) — 5.8–5.19"),
+]
+
+
+def _parse_kernel_version(version_str: str) -> tuple[int, int, int] | None:
+    """Parse a kernel version string like '5.15.0-rc7' into (5, 15, 0)."""
+    import re
+
+    m = re.match(r"(\d+)\.(\d+)(?:\.(\d+))?", version_str)
+    if not m:
+        return None
+    major = int(m.group(1))
+    minor = int(m.group(2))
+    patch = int(m.group(3)) if m.group(3) else 0
+    return (major, minor, patch)
+
+
+@cached_check("check_kernel_vulnerable")
+def check_kernel_vulnerable() -> list[Finding]:
+    """Check running kernel version against known-vulnerable ranges.
+
+    Linux LPE exploits are version-specific.  This check maps the current
+    `uname -r` output against a curated list of high-impact CVEs with
+    public exploits.
+    """
+    findings: list[Finding] = []
+
+    stdout, _, rc = run_command("uname -r 2>/dev/null")
+    if rc != 0 or not stdout:
+        return findings
+
+    version_str = stdout.strip()
+    kv = _parse_kernel_version(version_str)
+    if kv is None:
+        return findings
+
+    seen: set[str] = set()
+    for from_str, to_str, desc in _VULNERABLE_RANGES:
+        from_kv = _parse_kernel_version(from_str)
+        to_kv = _parse_kernel_version(to_str)
+        if from_kv is None or to_kv is None:
+            continue
+        if from_kv <= kv <= to_kv:
+            # Deduplicate adjacent vulns referencing the same CVE
+            short = desc.split("—")[0].rstrip() if "—" in desc else desc
+            if short in seen:
+                continue
+            seen.add(short)
+            findings.append(
+                Finding(
+                    severity=Severity.HIGH,
+                    check_id="KERN-029",
+                    title=f"Kernel Version May Be Vulnerable: {version_str}",
+                    description=(
+                        f"Kernel {version_str} falls within the vulnerable range "
+                        f"({from_str}–{to_str}) for {desc}"
+                    ),
+                    evidence=f"uname -r: {version_str}\nVulnerable range: {from_str}–{to_str}\nVuln: {desc}",
+                    impact=(
+                        "Public exploit exists for this kernel version; "
+                        "local privilege escalation is possible if the system is unpatched"
+                    ),
+                    remediation="Upgrade the kernel to the latest stable version for your distribution",
+                    phase="Phase 5",
+                )
+            )
+
+    if not findings:
+        return findings
+
+    # Collapse multiple matches: if we found N vulns, report the count.
+    collapsed = findings[0]
+    if len(findings) > 1:
+        collapsed.description = (
+            f"Kernel {version_str} falls within vulnerable ranges "
+            f"for {len(findings)} CVE(s). First hit: {findings[0].description}"
+        )
+        findings[:] = [collapsed]
+
+    return findings
+
+
 def run_kernel_checks() -> list[Finding]:
     """Run all kernel and OS hardening checks."""
     findings = []
@@ -772,5 +894,6 @@ def run_kernel_checks() -> list[Finding]:
     findings.extend(check_fde())
     findings.extend(check_tpm_attestation())
     findings.extend(check_secureboot())
+    findings.extend(check_kernel_vulnerable())
 
     return findings

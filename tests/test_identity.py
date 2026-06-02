@@ -8,16 +8,20 @@ from security_audit.phases.identity import (
     check_locked_accounts_with_shells,
     check_pam_faillock,
     check_password_policy,
+    check_path_hijacking,
     check_privileged_groups,
     check_session_timeout,
     check_ssh_password_auth,
     check_ssh_root_login,
+    check_sudo_gtfobins,
     check_sudo_nopasswd,
+    check_sudo_timestamp_timeout,
     check_sudo_wildcard_abuse,
     check_system_accounts_with_shells,
     check_uid_zero_accounts,
     check_umask,
     check_unauthorized_ssh_keys,
+    check_weak_service_credentials,
     run_identity_checks,
 )
 
@@ -43,8 +47,7 @@ class TestCheckUidZeroAccounts:
     def test_duplicate_uid_zero_flagged(self, mock_run):
         """Test when an additional UID-0 account exists — flagged."""
         mock_run.return_value = (
-            "root:x:0:0:root:/root:/bin/bash\n"
-            "backdoor:x:0:0:backdoor:/root:/bin/bash",
+            "root:x:0:0:root:/root:/bin/bash\nbackdoor:x:0:0:backdoor:/root:/bin/bash",
             "",
             0,
         )
@@ -278,3 +281,160 @@ class TestCheckUmask:
         findings = check_umask()
         assert len(findings) == 1
         assert findings[0].check_id == "IDENT-018"
+
+
+class TestCheckWeakServiceCredentials:
+    """Tests for check_weak_service_credentials."""
+
+    @patch("security_audit.phases.identity.run_command")
+    def test_mysql_plaintext_password(self, mock_run):
+        """MySQL config with plaintext password."""
+        mock_run.side_effect = [
+            ("[client]\npassword = s3cret\n", "", 0),  # cat /etc/mysql/my.cnf
+            ("", "", 1),  # cat /root/.my.cnf — not found
+            ("", "", 1),  # grep requirepass — not found
+            ("", "", 1),  # grep trust — not found
+            ("", "", 1),  # ls -la /root/.pgpass — not found
+        ]
+        findings = check_weak_service_credentials()
+        assert any("MySQL" in f.title for f in findings)
+
+    @patch("security_audit.phases.identity.run_command")
+    def test_redis_no_requirepass(self, mock_run):
+        """Redis with no requirepass set."""
+        mock_run.side_effect = [
+            ("", "", 1),  # cat /etc/mysql/my.cnf
+            ("", "", 1),  # cat /root/.my.cnf
+            ("", "", 1),  # grep requirepass — no match
+            ("", "", 1),  # grep trust — not found
+            ("", "", 1),  # ls -la /root/.pgpass — not found
+        ]
+        findings = check_weak_service_credentials()
+        assert any("Redis" in f.title for f in findings)
+
+    @patch("security_audit.phases.identity.run_command")
+    def test_postgres_trust_auth(self, mock_run):
+        """PostgreSQL with trust authentication."""
+        mock_run.side_effect = [
+            ("", "", 1),  # cat /etc/mysql/my.cnf
+            ("", "", 1),  # cat /root/.my.cnf
+            ("requirepass changeme", "", 0),  # grep requirepass — set
+            ("trust", "", 0),  # grep trust — found
+            ("", "", 1),  # ls -la /root/.pgpass — not found
+        ]
+        findings = check_weak_service_credentials()
+        assert any("PostgreSQL" in f.title for f in findings)
+
+    @patch("security_audit.phases.identity.run_command")
+    def test_no_issues(self, mock_run):
+        """All services configured securely."""
+        mock_run.side_effect = [
+            ("", "", 1),  # cat /etc/mysql/my.cnf — not found
+            ("", "", 1),  # cat /root/.my.cnf
+            ("requirepass strongpass", "", 0),  # Redis has password
+            ("", "", 1),  # grep trust — not found
+            ("", "", 1),  # ls -la /root/.pgpass — not found
+        ]
+        findings = check_weak_service_credentials()
+        assert len(findings) == 0
+
+
+class TestCheckPathHijacking:
+    """Tests for check_path_hijacking."""
+
+    @patch("security_audit.phases.identity.os.environ")
+    @patch("security_audit.phases.identity.run_command")
+    def test_world_writable_in_path(self, mock_run, mock_env):
+        """World-writable dir early in PATH is flagged."""
+        mock_env.get.return_value = "/usr/local/bin:/tmp"
+        mock_run.side_effect = [
+            ("drwxrwxrwx 2 root root 4096 /usr/local/bin", "", 0),
+            ("drwxrwxrwx 2 root root 4096 /tmp", "", 0),
+            ("", "", 1),  # systemd grep — no output
+        ]
+        findings = check_path_hijacking()
+        ww = [f for f in findings if "World-Writable" in f.title]
+        assert len(ww) >= 1
+        assert any(
+            "tmp" in f.description or "/usr/local/bin" in f.description for f in ww
+        )
+
+    @patch("security_audit.phases.identity.os.environ")
+    @patch("security_audit.phases.identity.run_command")
+    def test_secure_path_no_findings(self, mock_run, mock_env):
+        """No writable dirs in PATH, no relative systemd paths."""
+        mock_env.get.return_value = "/usr/local/bin:/usr/bin:/bin"
+        mock_run.side_effect = [
+            ("drwxr-xr-x 2 root root 4096 /usr/local/bin", "", 0),
+            ("drwxr-xr-x 2 root root 4096 /usr/bin", "", 0),
+            ("drwxr-xr-x 2 root root 4096 /bin", "", 0),
+            ("", "", 1),  # systemd grep — no output
+        ]
+        findings = check_path_hijacking()
+        assert len(findings) == 0
+
+
+class TestCheckSudoTimestampTimeout:
+    """Tests for check_sudo_timestamp_timeout."""
+
+    @patch("security_audit.phases.identity.run_command")
+    def test_timeout_too_long(self, mock_run):
+        """timestamp_timeout > 15 is flagged."""
+        mock_run.return_value = ("Defaults timestamp_timeout=60", "", 0)
+        findings = check_sudo_timestamp_timeout()
+        assert len(findings) == 1
+        assert findings[0].check_id == "IDENT-027"
+        assert "MEDIUM" in str(findings[0].severity)
+
+    @patch("security_audit.phases.identity.run_command")
+    def test_timeout_disabled(self, mock_run):
+        """timestamp_timeout=0 is CRITICAL."""
+        mock_run.return_value = ("Defaults timestamp_timeout=0", "", 0)
+        findings = check_sudo_timestamp_timeout()
+        assert len(findings) == 1
+        assert findings[0].severity == Severity.CRITICAL
+        assert "never expire" in findings[0].impact.lower()
+
+    @patch("security_audit.phases.identity.run_command")
+    def test_timeout_reasonable(self, mock_run):
+        """timestamp_timeout=15 produces no finding."""
+        mock_run.return_value = ("Defaults timestamp_timeout=15", "", 0)
+        findings = check_sudo_timestamp_timeout()
+        assert len(findings) == 0
+
+    @patch("security_audit.phases.identity.run_command")
+    def test_timeout_not_set(self, mock_run):
+        """No timestamp_timeout set — no finding (defaults to 15)."""
+        mock_run.return_value = ("", "", 1)
+        findings = check_sudo_timestamp_timeout()
+        assert len(findings) == 0
+
+
+class TestCheckSudoGtfobins:
+    """Tests for check_sudo_gtfobins."""
+
+    @patch("security_audit.phases.identity.run_command")
+    def test_gtfobin_found(self, mock_run):
+        """Dangerous sudo rule for a GTFOBins command is flagged."""
+        mock_run.return_value = (
+            "user ALL=(ALL) /usr/bin/git\nuser ALL=(ALL) /usr/bin/less\n",
+            "",
+            0,
+        )
+        findings = check_sudo_gtfobins()
+        assert len(findings) == 2
+        assert all(f.check_id == "IDENT-028" for f in findings)
+
+    @patch("security_audit.phases.identity.run_command")
+    def test_no_gtfobins(self, mock_run):
+        """No dangerous sudo rules."""
+        mock_run.return_value = ("user ALL=(ALL) /usr/bin/apt\n", "", 0)
+        findings = check_sudo_gtfobins()
+        assert len(findings) == 0
+
+    @patch("security_audit.phases.identity.run_command")
+    def test_no_sudoers(self, mock_run):
+        """No sudoers files found."""
+        mock_run.return_value = ("", "", 1)
+        findings = check_sudo_gtfobins()
+        assert len(findings) == 0

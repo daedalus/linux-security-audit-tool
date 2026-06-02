@@ -1,5 +1,7 @@
 """Phase 1 - Identity & Access Control module."""
 
+import os
+
 from ..core import Finding, Severity, cached_check, check_root, run_command
 
 
@@ -11,8 +13,7 @@ def check_uid_zero_accounts() -> list[Finding]:
     stdout, _, rc = run_command("awk -F: '$3 == 0 {print}' /etc/passwd")
     if rc == 0 and stdout:
         extra = [
-            e for e in stdout.strip().split("\n")
-            if e and not e.startswith("root:")
+            e for e in stdout.strip().split("\n") if e and not e.startswith("root:")
         ]
         if extra:
             findings.append(
@@ -642,6 +643,388 @@ def check_ssh_max_auth_tries() -> list[Finding]:
     return findings
 
 
+@cached_check("check_ssh_agent_forwarding")
+def check_ssh_agent_forwarding() -> list[Finding]:
+    """Check if SSH AllowAgentForwarding is explicitly disabled."""
+    findings: list[Finding] = []
+
+    paths = ["/etc/ssh/sshd_config", "/etc/ssh/sshd_config.d/*.conf"]
+    stdout, _, rc = run_command(f"grep -r '^AllowAgentForwarding' {paths} 2>/dev/null")
+    if rc == 0 and stdout.strip():
+        if "AllowAgentForwarding no" in stdout:
+            return findings
+        if "AllowAgentForwarding yes" in stdout:
+            findings.append(
+                Finding(
+                    severity=Severity.MEDIUM,
+                    check_id="IDENT-023",
+                    title="SSH Agent Forwarding Enabled",
+                    description="AllowAgentForwarding is explicitly set to yes",
+                    evidence=stdout.strip(),
+                    impact="SSH agent forwarding can expose local SSH keys to remote hosts if the remote is compromised",
+                    remediation="Set 'AllowAgentForwarding no' in /etc/ssh/sshd_config",
+                    phase="Phase 1",
+                )
+            )
+            return findings
+
+    findings.append(
+        Finding(
+            severity=Severity.MEDIUM,
+            check_id="IDENT-023",
+            title="SSH Agent Forwarding Not Explicitly Disabled",
+            description="AllowAgentForwarding is not explicitly set (defaults to yes on many systems)",
+            evidence=stdout.strip()
+            if stdout.strip()
+            else "No AllowAgentForwarding directive",
+            impact="SSH agent forwarding may be enabled by default, exposing keys to remote hosts",
+            remediation="Set 'AllowAgentForwarding no' in /etc/ssh/sshd_config",
+            phase="Phase 1",
+        )
+    )
+    return findings
+
+
+@cached_check("check_ssh_tcp_forwarding")
+def check_ssh_tcp_forwarding() -> list[Finding]:
+    """Check if SSH AllowTcpForwarding is explicitly disabled."""
+    findings: list[Finding] = []
+
+    paths = ["/etc/ssh/sshd_config", "/etc/ssh/sshd_config.d/*.conf"]
+    stdout, _, rc = run_command(f"grep -r '^AllowTcpForwarding' {paths} 2>/dev/null")
+    if rc == 0 and stdout.strip():
+        if "AllowTcpForwarding no" in stdout:
+            return findings
+        if "AllowTcpForwarding yes" in stdout:
+            findings.append(
+                Finding(
+                    severity=Severity.MEDIUM,
+                    check_id="IDENT-024",
+                    title="SSH TCP Forwarding Enabled",
+                    description="AllowTcpForwarding is explicitly set to yes",
+                    evidence=stdout.strip(),
+                    impact="TCP forwarding can be abused to tunnel out of restricted networks or access internal services",
+                    remediation="Set 'AllowTcpForwarding no' in /etc/ssh/sshd_config",
+                    phase="Phase 1",
+                )
+            )
+            return findings
+
+    findings.append(
+        Finding(
+            severity=Severity.MEDIUM,
+            check_id="IDENT-024",
+            title="SSH TCP Forwarding Not Explicitly Disabled",
+            description="AllowTcpForwarding is not explicitly set (defaults to yes on many systems)",
+            evidence=stdout.strip()
+            if stdout.strip()
+            else "No AllowTcpForwarding directive",
+            impact="TCP forwarding may be enabled by default, allowing port tunneling through SSH",
+            remediation="Set 'AllowTcpForwarding no' in /etc/ssh/sshd_config",
+            phase="Phase 1",
+        )
+    )
+    return findings
+
+
+@cached_check("check_weak_service_credentials")
+def check_weak_service_credentials() -> list[Finding]:
+    """Check for weak or default credentials in common services.
+
+    Scans configuration files for MySQL, Redis, and PostgreSQL for
+    default/empty passwords or unauthenticated access configurations.
+    """
+    findings: list[Finding] = []
+
+    # MySQL — check for plaintext password in config files
+    mysql_configs = ["/etc/mysql/my.cnf", "/root/.my.cnf"]
+    for path in mysql_configs:
+        stdout, _, rc = run_command(["cat", path])
+        if rc == 0 and stdout:
+            for line in stdout.strip().split("\n"):
+                stripped = line.strip()
+                if "password" in stripped.lower():
+                    findings.append(
+                        Finding(
+                            severity=Severity.HIGH,
+                            check_id="IDENT-025",
+                            title="MySQL Credential in Plaintext Config",
+                            description=f"Password found in {path}",
+                            evidence=stripped,
+                            impact="Credentials stored in plaintext can be read by any user with file access",
+                            remediation=f"Remove password from {path}; use mysql_config_editor or socket auth instead",
+                            phase="Phase 1",
+                        )
+                    )
+                    break
+
+    # Redis — requirepass not set or empty
+    stdout, _, rc = run_command(
+        "grep -E '^requirepass' /etc/redis/redis.conf 2>/dev/null"
+    )
+    if rc != 0 or not stdout.strip():
+        findings.append(
+            Finding(
+                severity=Severity.HIGH,
+                check_id="IDENT-025",
+                title="Redis Authentication Not Configured",
+                description="requirepass is not set in /etc/redis/redis.conf",
+                evidence="No requirepass directive found",
+                impact="Redis is accessible without authentication, allowing remote code execution via Lua sandbox",
+                remediation="Set requirepass in /etc/redis/redis.conf and restart redis-server",
+                phase="Phase 1",
+            )
+        )
+
+    # PostgreSQL — check for trust authentication in pg_hba.conf
+    stdout, _, rc = run_command("grep -r 'trust' /etc/postgresql/ 2>/dev/null")
+    if rc == 0 and stdout.strip():
+        findings.append(
+            Finding(
+                severity=Severity.HIGH,
+                check_id="IDENT-025",
+                title="PostgreSQL Trust Authentication Enabled",
+                description="Found 'trust' authentication entries in pg_hba.conf",
+                evidence=stdout.strip()[:500],
+                impact="Trust authentication allows passwordless database access for matching entries",
+                remediation="Replace 'trust' with 'md5' or 'scram-sha-256' in pg_hba.conf",
+                phase="Phase 1",
+            )
+        )
+
+    # PostgreSQL — check .pgpass is not world-readable
+    stdout, _, rc = run_command(["ls", "-la", "/root/.pgpass"])
+    if rc == 0 and stdout:
+        parts = stdout.split()
+        if len(parts) >= 1:
+            perms = parts[0]
+            if len(perms) >= 9 and (perms[7] != "-" or perms[8] != "-"):
+                findings.append(
+                    Finding(
+                        severity=Severity.HIGH,
+                        check_id="IDENT-025",
+                        title="World-Readable PostgreSQL Password File",
+                        description=f"/root/.pgpass has permissions {perms}",
+                        evidence=stdout,
+                        impact="PostgreSQL credentials are readable by other users",
+                        remediation="Set permissions to 600: chmod 600 /root/.pgpass",
+                        phase="Phase 1",
+                    )
+                )
+
+    return findings
+
+
+@cached_check("check_path_hijacking")
+def check_path_hijacking() -> list[Finding]:
+    """Check PATH for writable directories and systemd for relative ExecStart paths.
+
+    A writable directory early in root's PATH lets an attacker intercept
+    any command that is resolved without a full path.
+    A relative ExecStart in a systemd unit lets an attacker control execution
+    by planting a binary in the unit's working directory.
+    """
+    findings: list[Finding] = []
+
+    path = os.environ.get("PATH", "")
+    for i, directory in enumerate(path.split(":")):
+        if not directory:
+            continue
+        stdout, _, rc = run_command(["ls", "-lad", directory])
+        if rc != 0 or not stdout:
+            continue
+        parts = stdout.split()
+        if len(parts) < 4:
+            continue
+        perms = parts[0]
+        if len(perms) >= 9 and perms[8] == "w":
+            pos = "early" if i < 3 else "later in"
+            findings.append(
+                Finding(
+                    severity=Severity.HIGH,
+                    check_id="IDENT-026",
+                    title="World-Writable Directory in PATH",
+                    description=f"{directory} is world-writable and appears {pos} PATH",
+                    evidence=f"PATH element [{i}]: {directory}\n{stdout}",
+                    impact="Attacker can plant a malicious binary with a common name, and root may execute it inadvertently",
+                    remediation="Remove world-writable bit: chmod o-w {directory}, or move {directory} to the end of PATH",
+                    phase="Phase 1",
+                )
+            )
+
+    # Check systemd unit files for relative ExecStart paths
+    stdout, _, rc = run_command(
+        "grep -rh '^ExecStart=' /etc/systemd/system/ 2>/dev/null | "
+        "grep -v '/bin/' | grep -v '/usr/' | grep -v '/sbin/' | "
+        "grep -v '/opt/' | grep -v '/etc/' | sort -u | head -20"
+    )
+    if rc == 0 and stdout.strip():
+        findings.append(
+            Finding(
+                severity=Severity.MEDIUM,
+                check_id="IDENT-026",
+                title="Systemd Units With Relative ExecStart",
+                description="Found systemd units using relative paths in ExecStart",
+                evidence=stdout.strip()[:500],
+                impact="A malicious binary planted in the unit's working directory will be executed instead of the intended program",
+                remediation="Replace relative ExecStart paths with absolute paths in all systemd unit files",
+                phase="Phase 1",
+            )
+        )
+
+    return findings
+
+
+@cached_check("check_sudo_timestamp_timeout")
+def check_sudo_timestamp_timeout() -> list[Finding]:
+    """Check sudo timestamp_timeout — the window before sudo re-asks for a password.
+
+    A long timestamp_timeout widens the reuse window: if a user walks away from
+    a terminal with an active sudo session, an attacker can use the cached credential.
+    """
+    findings: list[Finding] = []
+
+    stdout, _, rc = run_command(
+        "grep -rh 'timestamp_timeout' /etc/sudoers /etc/sudoers.d/* 2>/dev/null"
+    )
+    if rc == 0 and stdout.strip():
+        for line in stdout.strip().split("\n"):
+            if "timestamp_timeout=" in line:
+                val_str = line.split("timestamp_timeout=", 1)[1].strip().split()[0]
+                try:
+                    val = float(val_str)
+                    if val > 15:
+                        findings.append(
+                            Finding(
+                                severity=Severity.MEDIUM,
+                                check_id="IDENT-027",
+                                title="Long sudo Timestamp Timeout",
+                                description=(
+                                    f"sudo timestamp_timeout is {val} minutes "
+                                    f"(recommended <= 15)"
+                                ),
+                                evidence=line.strip(),
+                                impact=(
+                                    "Extended sudo credential caching increases the window for "
+                                    "privilege escalation if a terminal is left unattended"
+                                ),
+                                remediation=(
+                                    "Set 'Defaults timestamp_timeout=15' or less "
+                                    "in /etc/sudoers"
+                                ),
+                                phase="Phase 1",
+                            )
+                        )
+                    if val <= 0:
+                        findings.append(
+                            Finding(
+                                severity=Severity.CRITICAL,
+                                check_id="IDENT-027",
+                                title="sudo Timestamp Timeout Disabled",
+                                description=(
+                                    f"sudo timestamp_timeout is {val} (credentials never expire)"
+                                ),
+                                evidence=line.strip(),
+                                impact=(
+                                    "Once authenticated with sudo, the credential never "
+                                    "expires — a permanent escalation window"
+                                ),
+                                remediation=(
+                                    "Remove 'timestamp_timeout=0' or set a positive value "
+                                    "in /etc/sudoers"
+                                ),
+                                phase="Phase 1",
+                            )
+                        )
+                except ValueError:
+                    pass
+    return findings
+
+
+@cached_check("check_sudo_gtfobins")
+def check_sudo_gtfobins() -> list[Finding]:
+    """Check for dangerous sudo rules allowing GTFOBins command escape.
+
+    Extends the 8 hardcoded patterns from check_sudo_wildcard_abuse with a
+    comprehensive list of commands known to allow shell escape via
+    sudo (see GTFOBins.github.io).  Every command on this list that can appear
+    in sudoers with the form Cmnd_Alias /usr/bin/<cmd> or ALL=(ALL) <cmd>
+    enables a non‑privileged user to obtain a root shell.
+    """
+    findings: list[Finding] = []
+
+    gtfobins = [
+        "/usr/bin/vi",
+        "/usr/bin/vim",
+        "/usr/bin/nano",
+        "/usr/bin/emacs",
+        "/usr/bin/find",
+        "/usr/bin/python",
+        "/usr/bin/python3",
+        "/usr/bin/perl",
+        "/usr/bin/ruby",
+        "/usr/bin/lua",
+        "/usr/bin/awk",
+        "/usr/bin/mawk",
+        "/usr/bin/gawk",
+        "/usr/bin/sed",
+        "/usr/bin/cp",
+        "/usr/bin/mv",
+        "/usr/bin/tar",
+        "/usr/bin/zip",
+        "/usr/bin/unzip",
+        "/usr/bin/less",
+        "/usr/bin/more",
+        "/usr/bin/head",
+        "/usr/bin/tail",
+        "/usr/bin/htop",
+        "/usr/bin/top",
+        "/usr/bin/ftp",
+        "/usr/bin/gdb",
+        "/usr/bin/strace",
+        "/usr/bin/ssh",
+        "/usr/bin/scp",
+        "/usr/bin/rsync",
+        "/usr/bin/git",
+        "/usr/bin/env",
+        "/usr/bin/expect",
+        "/usr/bin/csplit",
+        "/usr/bin/cut",
+        "/usr/bin/paste",
+        "/usr/bin/join",
+        "/usr/bin/expand",
+        "/usr/bin/uniq",
+        "/usr/bin/run-parts",
+        "/usr/bin/busybox",
+        "/usr/bin/socat",
+        "/usr/bin/nmap",
+        "/usr/bin/nc",
+        "/usr/bin/netcat",
+        "/usr/bin/cat",
+    ]
+
+    stdout, _, rc = run_command("cat /etc/sudoers /etc/sudoers.d/* 2>/dev/null")
+    if rc != 0 or not stdout:
+        return findings
+
+    for cmd in gtfobins:
+        if cmd in stdout:
+            findings.append(
+                Finding(
+                    severity=Severity.HIGH,
+                    check_id="IDENT-028",
+                    title="Dangerous Sudo GTFOBins Rule",
+                    description=f"Found sudo rule referencing {cmd} — allows shell escape on execution",
+                    evidence=f"sudoers contains: {cmd}",
+                    impact="Privileged user can escape to a root shell via the GTFOBins technique for this command",
+                    remediation=f"Remove {cmd} from sudo rules or restrict with specific arguments",
+                    phase="Phase 1",
+                )
+            )
+
+    return findings
+
+
 def run_identity_checks() -> list[Finding]:
     """Run all identity and access control checks."""
     findings = []
@@ -666,5 +1049,11 @@ def run_identity_checks() -> list[Finding]:
     findings.extend(check_ssh_permit_empty_passwords())
     findings.extend(check_ssh_pubkey_auth())
     findings.extend(check_ssh_max_auth_tries())
+    findings.extend(check_ssh_agent_forwarding())
+    findings.extend(check_ssh_tcp_forwarding())
+    findings.extend(check_weak_service_credentials())
+    findings.extend(check_path_hijacking())
+    findings.extend(check_sudo_timestamp_timeout())
+    findings.extend(check_sudo_gtfobins())
 
     return findings

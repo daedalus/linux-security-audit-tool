@@ -8,6 +8,7 @@ from security_audit.phases.kernel import (
     check_grub_password,
     check_icmp_redirects,
     check_ip_forwarding,
+    check_kernel_vulnerable,
     check_kptr_restrict,
     check_rp_filter,
     check_secureboot,
@@ -298,3 +299,43 @@ class TestRunKernelChecks:
         mock_run.return_value = ("", "", 1)
         findings = run_kernel_checks()
         assert isinstance(findings, list)
+
+
+class TestCheckKernelVulnerable:
+    """Tests for check_kernel_vulnerable."""
+
+    @patch("security_audit.phases.kernel.run_command")
+    def test_vulnerable_version_5_15(self, mock_run):
+        """5.15.x is vulnerable to multiple CVEs."""
+        mock_run.return_value = ("5.15.0-generic", "", 0)
+        findings = check_kernel_vulnerable()
+        assert len(findings) >= 1
+        assert findings[0].check_id == "KERN-029"
+
+    @patch("security_audit.phases.kernel.run_command")
+    def test_safe_kernel_6_10(self, mock_run):
+        """6.10.x is outside all known vulnerable ranges."""
+        mock_run.return_value = ("6.10.12-arch1-1", "", 0)
+        findings = check_kernel_vulnerable()
+        assert len(findings) == 0
+
+    @patch("security_audit.phases.kernel.run_command")
+    def test_dirty_cow_kernel(self, mock_run):
+        """4.10.x is vulnerable to Dirty COW."""
+        mock_run.return_value = ("4.10.0-42-generic", "", 0)
+        findings = check_kernel_vulnerable()
+        assert len(findings) >= 1
+
+    @patch("security_audit.phases.kernel.run_command")
+    def test_no_uname(self, mock_run):
+        """No uname output produces no finding."""
+        mock_run.return_value = ("", "", 1)
+        findings = check_kernel_vulnerable()
+        assert len(findings) == 0
+
+    @patch("security_audit.phases.kernel.run_command")
+    def test_invalid_version_string(self, mock_run):
+        """Non-parseable version produces no finding."""
+        mock_run.return_value = ("VERSION 1.0", "", 0)
+        findings = check_kernel_vulnerable()
+        assert len(findings) == 0

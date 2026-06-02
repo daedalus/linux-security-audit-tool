@@ -8,7 +8,9 @@ from security_audit.phases.filesystem import (
     check_critical_file_permissions,
     check_cron_jobs,
     check_mount_options,
+    check_nfs_exports,
     check_sgid_binaries,
+    check_smb_config,
     check_suid_binaries,
     check_world_writable_files,
     run_filesystem_checks,
@@ -104,8 +106,7 @@ class TestCheckCapabilities:
     def test_no_mixed_existing_suid_caps(self, mock_run):
         """Existing SUID binaries with caps are still flagged."""
         mock_run.return_value = (
-            "/usr/bin/python3.11 = cap_setuid+ep\n"
-            "/usr/bin/ping = cap_net_raw+ep\n",
+            "/usr/bin/python3.11 = cap_setuid+ep\n/usr/bin/ping = cap_net_raw+ep\n",
             "",
             0,
         )
@@ -147,6 +148,8 @@ class TestCheckCriticalFilePermissions:
             ("-rw------- 1 root shadow 1000 /etc/shadow", "", 0),
             ("-rw------- 1 root root 1000 /etc/gshadow", "", 0),
             ("-r--r----- 1 root root 1000 /etc/sudoers", "", 0),
+            ("-rw-r--r-- 1 root root 2000 /etc/passwd", "", 0),
+            ("-rw-r--r-- 1 root root 1000 /etc/group", "", 0),
         ]
         findings = check_critical_file_permissions()
         assert len(findings) == 0
@@ -166,16 +169,35 @@ class TestCheckCronJobs:
     def test_suspicious_cron_found(self, mock_run):
         """Test when suspicious cron job found."""
         mock_run.side_effect = [
+            # 1. ls -la /etc/crontab — no output
+            ("", "", 1),
+            # 2. ls -la /etc/cron.d/ — curl in output
             (
                 "drwxr-xr-x root root 4096 Jan  1 00:00 /etc/cron.d/hook  curl http://evil.com",
                 "",
                 0,
             ),
+            # 3. find /etc/cron.d/ -type f
+            ("/etc/cron.d/hook\n", "", 0),
+            # 4. stat /etc/cron.d/hook
+            ("root 644", "", 0),
+            # 5. ls -la /etc/cron.daily/
             ("", "", 1),
+            # 6. find /etc/cron.daily/ -type f — no results
             ("", "", 1),
+            # 7. ls -la /etc/cron.weekly/
             ("", "", 1),
+            # 8. find /etc/cron.weekly/ -type f — no results
             ("", "", 1),
+            # 9. ls -la /etc/cron.monthly/
             ("", "", 1),
+            # 10. find /etc/cron.monthly/ -type f — no results
+            ("", "", 1),
+            # 11. ls -la /var/spool/cron/
+            ("", "", 1),
+            # 12. find /var/spool/cron/ -type f — no results
+            ("", "", 1),
+            # 13. crontab -l
             ("", "", 1),
         ]
         findings = check_cron_jobs()
@@ -235,4 +257,102 @@ class TestCheckMountOptions:
         """Test when mount command fails."""
         mock_run.return_value = ("", "", 1)
         findings = check_mount_options()
+        assert len(findings) == 0
+
+
+class TestCheckNfsExports:
+    """Tests for check_nfs_exports."""
+
+    @patch("security_audit.phases.filesystem.run_command")
+    def test_no_root_squash_flagged_critical(self, mock_run):
+        """no_root_squash is flagged CRITICAL."""
+        mock_run.return_value = (
+            "/srv/nfs 10.0.0.0/8(rw,no_root_squash)\n",
+            "",
+            0,
+        )
+        findings = check_nfs_exports()
+        assert any(f.severity == Severity.CRITICAL for f in findings)
+        assert any("no_root_squash" in f.description for f in findings)
+
+    @patch("security_audit.phases.filesystem.run_command")
+    def test_insecure_option_flagged(self, mock_run):
+        """insecure option is flagged MEDIUM."""
+        mock_run.return_value = (
+            "/srv/nfs *(rw,insecure)\n",
+            "",
+            0,
+        )
+        findings = check_nfs_exports()
+        assert any("insecure" in f.title for f in findings)
+        assert any(f.severity == Severity.MEDIUM for f in findings)
+
+    @patch("security_audit.phases.filesystem.run_command")
+    def test_world_accessible_flagged(self, mock_run):
+        """World-accessible export is flagged HIGH."""
+        mock_run.return_value = (
+            "/srv/nfs *(rw)\n",
+            "",
+            0,
+        )
+        findings = check_nfs_exports()
+        assert any(f.severity == Severity.HIGH for f in findings)
+
+    @patch("security_audit.phases.filesystem.run_command")
+    def test_secure_export_no_findings(self, mock_run):
+        """Restricted, squashed export produces no findings."""
+        mock_run.return_value = (
+            "/srv/nfs 10.0.0.0/8(rw,root_squash)\n",
+            "",
+            0,
+        )
+        findings = check_nfs_exports()
+        assert len(findings) == 0
+
+    @patch("security_audit.phases.filesystem.run_command")
+    def test_no_exports_file(self, mock_run):
+        """No /etc/exports produces no findings."""
+        mock_run.return_value = ("", "", 1)
+        findings = check_nfs_exports()
+        assert len(findings) == 0
+
+
+class TestCheckSmbConfig:
+    """Tests for check_smb_config."""
+
+    @patch("security_audit.phases.filesystem.run_command")
+    def test_insecure_security_mode(self, mock_run):
+        """Non-user security mode is flagged."""
+        mock_run.side_effect = [
+            ("security = share", "", 0),
+            ("", "", 1),
+        ]
+        findings = check_smb_config()
+        assert len(findings) >= 1
+
+    @patch("security_audit.phases.filesystem.run_command")
+    def test_guest_access_flagged(self, mock_run):
+        """Guest ok = yes is flagged."""
+        mock_run.side_effect = [
+            ("security = user", "", 0),
+            ("guest ok = yes", "", 0),
+        ]
+        findings = check_smb_config()
+        assert any("Guest" in f.title for f in findings)
+
+    @patch("security_audit.phases.filesystem.run_command")
+    def test_secure_config(self, mock_run):
+        """Secure Samba config produces no findings."""
+        mock_run.side_effect = [
+            ("security = user", "", 0),
+            ("", "", 1),
+        ]
+        findings = check_smb_config()
+        assert len(findings) == 0
+
+    @patch("security_audit.phases.filesystem.run_command")
+    def test_no_smb_conf(self, mock_run):
+        """No smb.conf produces no findings."""
+        mock_run.return_value = ("", "", 1)
+        findings = check_smb_config()
         assert len(findings) == 0
