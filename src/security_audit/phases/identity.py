@@ -5,26 +5,30 @@ from ..core import Finding, Severity, cached_check, check_root, run_command
 
 @cached_check("check_uid_zero_accounts")
 def check_uid_zero_accounts() -> list[Finding]:
-    """Check for duplicate UID 0 accounts."""
+    """Check for duplicate UID 0 accounts (skips the canonical root entry)."""
     findings = []
 
     stdout, _, rc = run_command("awk -F: '$3 == 0 {print}' /etc/passwd")
     if rc == 0 and stdout:
-        lines = stdout.strip().split("\n")
-        for line in lines:
-            if line:
-                findings.append(
-                    Finding(
-                        severity=Severity.CRITICAL,
-                        check_id="IDENT-001",
-                        title="UID 0 Account Found",
-                        description=f"Found account with UID 0: {line}",
-                        evidence=f"awk -F: '$3 == 0 {print}' /etc/passwd\n{stdout}",
-                        impact="Account has full root privileges on the system",
-                        remediation="Review and remove unauthorized UID 0 accounts",
-                        phase="Phase 1",
-                    )
+        extra = [
+            e for e in stdout.strip().split("\n")
+            if e and not e.startswith("root:")
+        ]
+        if extra:
+            findings.append(
+                Finding(
+                    severity=Severity.CRITICAL,
+                    check_id="IDENT-001",
+                    title=f"Duplicate UID 0 Accounts Found ({len(extra)})",
+                    description="Additional UID-0 accounts beyond root: "
+                    + ", ".join(e.split(":")[0] for e in extra),
+                    evidence="awk -F: '$3 == 0 {print}' /etc/passwd\n"
+                    + "\n".join(extra),
+                    impact="Each additional UID-0 account has full root privileges",
+                    remediation="Remove unauthorized UID 0 accounts with: userdel <username>",
+                    phase="Phase 1",
                 )
+            )
 
     return findings
 
@@ -239,7 +243,7 @@ def check_unauthorized_ssh_keys() -> list[Finding]:
     stdout, _, _ = run_command("find /home /root -name authorized_keys 2>/dev/null")
     if stdout:
         for path in stdout.strip().split("\n"):
-            key_content, _, _ = run_command(f"cat {path} 2>/dev/null")
+            key_content, _, _ = run_command(["cat", path])
             if key_content:
                 findings.append(
                     Finding(
@@ -329,7 +333,7 @@ def check_password_expiry() -> list[Finding]:
     findings = []
 
     stdout, _, rc = run_command(
-        "sudo awk -F: '($1!~ /^root/ && $1!~ /^sync/ && $1!~ /^shutdown/ && $1!~ /^halt/ && $8~/^e/ && $7!~/nologin/) {print $1,$5,$6}' /etc/shadow 2>/dev/null"
+        "awk -F: '($1!~ /^root/ && $1!~ /^sync/ && $1!~ /^shutdown/ && $1!~ /^halt/ && $8~/^e/ && $7!~/nologin/) {print $1,$5,$6}' /etc/shadow 2>/dev/null"
     )
     if rc == 0 and stdout:
         import time

@@ -32,6 +32,37 @@ DANGEROUS_SUID = [
     "/bin/sh",
 ]
 
+# Capabilities that grant full or near-full privilege escalation
+# when set on any executable (effective+inheritable).
+# See capabilities(7) for the full reference.
+ESCALATION_CAPS = {
+    "cap_setuid",      # spawn shell with arbitrary UID 0
+    "cap_setgid",      # spawn shell with arbitrary GID 0
+    "cap_sys_admin",   # mount, namespace, bpf — kernel-level access
+    "cap_sys_ptrace",  # ptrace any process, read memory
+    "cap_dac_override",  # bypass file permission checks
+    "cap_dac_read_search",  # read any file
+    "cap_fowner",     # change file ownership arbitrarily
+    "cap_fsetid",     # set arbitrary GID on created files
+    "cap_setpcap",    # grant capabilities to other processes
+    "cap_net_admin",  # configure network (firewall, raw sockets)
+    "cap_sys_module", # load kernel modules
+    "cap_sys_rawio",  # raw I/O, memory access
+}
+
+# Capabilities worth noting but lower severity
+NOTEWORTHY_CAPS = {
+    "cap_net_raw",       # raw sockets (ping, sniff)
+    "cap_net_bind_service",  # bind to privileged ports <1024
+    "cap_sys_boot",      # reboot
+    "cap_sys_time",      # system clock manipulation
+    "cap_kill",          # signal any process
+    "cap_linux_immutable",  # set FS_APPEND_FL / FS_IMMUTABLE_FL
+    "cap_ipc_lock",      # lock memory (side-channel, swap bypass)
+    "cap_sys_nice",      # raise priority, set real-time scheduling
+    "cap_audit_control", # manipulate audit subsystem
+}
+
 
 @cached_check("check_suid_binaries")
 def check_suid_binaries() -> list[Finding]:
@@ -54,6 +85,69 @@ def check_suid_binaries() -> list[Finding]:
                         phase="Phase 3",
                     )
                 )
+
+    return findings
+
+
+@cached_check("check_capabilities")
+def check_capabilities() -> list[Finding]:
+    """Check for files with Linux capabilities(7).
+
+    Capabilities are the modern, granular replacement for SUID.
+    A binary with cap_setuid+ep is functionally equivalent to a
+    SUID-root binary and must be audited with the same rigor.
+    """
+    findings: list[Finding] = []
+
+    stdout, _, rc = run_command(
+        "getcap -r / 2>/dev/null | sort"
+    )
+    if rc != 0 or not stdout:
+        return findings
+
+    for line in stdout.strip().split("\n"):
+        line = line.strip()
+        if not line or " = " not in line:
+            continue
+
+        parts = line.split(" = ", 1)
+        path = parts[0]
+        cap_part = parts[1]
+
+        caps_found = set()
+        for token in cap_part.replace(",", " ").split():
+            cap_name = token.split("+")[0]
+            caps_found.add(cap_name)
+
+        escalation = caps_found & ESCALATION_CAPS
+        noteworthy = caps_found & NOTEWORTHY_CAPS
+
+        if escalation:
+            findings.append(
+                Finding(
+                    severity=Severity.HIGH,
+                    check_id="FS-016",
+                    title="Binary with Privilege-Escalation Capabilities",
+                    description=f"{path} has escalation-capable capabilities: {', '.join(sorted(escalation))}",
+                    evidence=line,
+                    impact="Can be used for privilege escalation (equivalent to SUID root)",
+                    remediation=f"Remove capabilities: setcap -r {path}",
+                    phase="Phase 3",
+                )
+            )
+        elif noteworthy:
+            findings.append(
+                Finding(
+                    severity=Severity.MEDIUM,
+                    check_id="FS-016",
+                    title="Binary with Notable Capabilities",
+                    description=f"{path} has capabilities: {', '.join(sorted(noteworthy))}",
+                    evidence=line,
+                    impact="Expanded attack surface beyond traditional unprivileged execution",
+                    remediation=f"Review and remove unnecessary capabilities: setcap -r {path}",
+                    phase="Phase 3",
+                )
+            )
 
     return findings
 
@@ -170,7 +264,7 @@ def check_critical_file_permissions() -> list[Finding]:
     }
 
     for filepath, (owner, group, perms) in critical_files.items():
-        stdout, _, rc = run_command(f"ls -la {filepath} 2>/dev/null")
+        stdout, _, rc = run_command(["ls", "-la", filepath])
         if rc == 0 and stdout:
             parts = stdout.split()
             if len(parts) >= 4:
@@ -218,7 +312,7 @@ def check_cron_jobs() -> list[Finding]:
     ]
 
     for path in cron_paths:
-        stdout, _, rc = run_command(f"ls -la {path} 2>/dev/null")
+        stdout, _, rc = run_command(["ls", "-la", path])
         if rc == 0 and stdout:
             if "curl" in stdout.lower() or "wget" in stdout.lower():
                 findings.append(
@@ -262,7 +356,7 @@ def check_ssh_private_key_permissions() -> list[Finding]:
     )
     if stdout:
         for path in stdout.strip().split("\n"):
-            perms, _, rc = run_command(f"stat -c '%a' {path} 2>/dev/null")
+            perms, _, rc = run_command(["stat", "-c", "%a", path])
             if rc == 0 and perms.strip() != "600":
                 findings.append(
                     Finding(
@@ -336,7 +430,7 @@ def check_sudoers_integrity() -> list[Finding]:
     """Check sudoers file integrity."""
     findings = []
 
-    stdout, _, rc = run_command("stat -c '%y %n' /etc/sudoers 2>/dev/null")
+    stdout, _, rc = run_command(["stat", "-c", "%y %n", "/etc/sudoers"])
     if rc == 0 and stdout:
         findings.append(
             Finding(
@@ -351,7 +445,7 @@ def check_sudoers_integrity() -> list[Finding]:
             )
         )
 
-    stdout, _, rc = run_command("stat -c '%y %n' /etc/sudoers.d 2>/dev/null")
+    stdout, _, rc = run_command(["stat", "-c", "%y %n", "/etc/sudoers.d"])
     if rc == 0 and stdout:
         findings.append(
             Finding(
@@ -446,6 +540,7 @@ def run_filesystem_checks() -> list[Finding]:
     findings = []
 
     findings.extend(check_suid_binaries())
+    findings.extend(check_capabilities())
     findings.extend(check_sgid_binaries())
     findings.extend(check_world_writable_files())
     findings.extend(check_world_writable_dirs())

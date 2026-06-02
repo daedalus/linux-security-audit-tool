@@ -33,6 +33,59 @@ class TestCheckListeningServices:
         findings = check_listening_services()
         assert len(findings) == 0
 
+    @patch("security_audit.phases.network.run_command")
+    def test_expected_port_ssh_is_info(self, mock_run):
+        """SSH on 22 should be INFO (expected)."""
+        mock_run.return_value = (
+            "State Recv-Q Send-Q Local Address:Port Peer Address:Port Process\n"
+            "LISTEN 0 128 0.0.0.0:22 0.0.0.0:* users:(('sshd',pid=100,fd=3))",
+            "",
+            0,
+        )
+        findings = check_listening_services()
+        assert len(findings) == 1
+        assert findings[0].severity == Severity.INFO
+        assert findings[0].check_id == "NET-001"
+
+    @patch("security_audit.phases.network.run_command")
+    def test_expected_port_https_is_info(self, mock_run):
+        """HTTPS on 443 should be INFO (expected)."""
+        mock_run.return_value = (
+            "State Recv-Q Send-Q Local Address:Port Peer Address:Port Process\n"
+            "LISTEN 0 128 0.0.0.0:443 0.0.0.0:* users:(('nginx',pid=200,fd=6))",
+            "",
+            0,
+        )
+        findings = check_listening_services()
+        assert len(findings) == 1
+        assert findings[0].severity == Severity.INFO
+
+    @patch("security_audit.phases.network.run_command")
+    def test_sensitive_port_mysql_is_high(self, mock_run):
+        """MySQL on 3306 should be HIGH (sensitive)."""
+        mock_run.return_value = (
+            "State Recv-Q Send-Q Local Address:Port Peer Address:Port Process\n"
+            "LISTEN 0 128 0.0.0.0:3306 0.0.0.0:* users:(('mysqld',pid=300,fd=3))",
+            "",
+            0,
+        )
+        findings = check_listening_services()
+        assert len(findings) == 1
+        assert findings[0].severity == Severity.HIGH
+
+    @patch("security_audit.phases.network.run_command")
+    def test_unknown_port_is_medium(self, mock_run):
+        """An unknown port should be MEDIUM."""
+        mock_run.return_value = (
+            "State Recv-Q Send-Q Local Address:Port Peer Address:Port Process\n"
+            "LISTEN 0 128 0.0.0.0:8080 0.0.0.0:* users:(('java',pid=400,fd=8))",
+            "",
+            0,
+        )
+        findings = check_listening_services()
+        assert len(findings) == 1
+        assert findings[0].severity == Severity.MEDIUM
+
 
 class TestCheckFirewallStatus:
     """Tests for check_firewall_status."""

@@ -33,13 +33,26 @@ class TestCheckUidZeroAccounts:
         assert len(findings) == 0
 
     @patch("security_audit.phases.identity.run_command")
-    def test_single_root_account(self, mock_run):
-        """Test when only root account exists."""
+    def test_single_root_account_skipped(self, mock_run):
+        """Test when only the canonical root account exists — not flagged."""
         mock_run.return_value = ("root:x:0:0:root:/root:/bin/bash", "", 0)
+        findings = check_uid_zero_accounts()
+        assert len(findings) == 0
+
+    @patch("security_audit.phases.identity.run_command")
+    def test_duplicate_uid_zero_flagged(self, mock_run):
+        """Test when an additional UID-0 account exists — flagged."""
+        mock_run.return_value = (
+            "root:x:0:0:root:/root:/bin/bash\n"
+            "backdoor:x:0:0:backdoor:/root:/bin/bash",
+            "",
+            0,
+        )
         findings = check_uid_zero_accounts()
         assert len(findings) == 1
         assert findings[0].severity == Severity.CRITICAL
         assert findings[0].check_id == "IDENT-001"
+        assert "backdoor" in findings[0].description
 
 
 class TestCheckSystemAccountsWithShells:

@@ -2,7 +2,9 @@
 
 from unittest.mock import patch
 
+from security_audit.core import Severity
 from security_audit.phases.filesystem import (
+    check_capabilities,
     check_critical_file_permissions,
     check_cron_jobs,
     check_mount_options,
@@ -29,6 +31,88 @@ class TestCheckSUIDBinaries:
         mock_run.return_value = ("/usr/bin/bash\n/usr/bin/python", "", 0)
         findings = check_suid_binaries()
         assert len(findings) >= 1
+
+
+class TestCheckCapabilities:
+    """Tests for check_capabilities."""
+
+    @patch("security_audit.phases.filesystem.run_command")
+    def test_no_caps(self, mock_run):
+        """Test when no capabilities are set."""
+        mock_run.return_value = ("", "", 0)
+        findings = check_capabilities()
+        assert len(findings) == 0
+
+    @patch("security_audit.phases.filesystem.run_command")
+    def test_getcap_not_found(self, mock_run):
+        """Test when getcap is not available."""
+        mock_run.return_value = ("", "", 127)
+        findings = check_capabilities()
+        assert len(findings) == 0
+
+    @patch("security_audit.phases.filesystem.run_command")
+    def test_escalation_cap_flagged_high(self, mock_run):
+        """cap_setuid+ep is flagged HIGH (like SUID root)."""
+        mock_run.return_value = (
+            "/usr/bin/python3.11 = cap_setuid+ep\n",
+            "",
+            0,
+        )
+        findings = check_capabilities()
+        assert len(findings) == 1
+        assert findings[0].severity == Severity.HIGH
+        assert findings[0].check_id == "FS-016"
+        assert "cap_setuid" in findings[0].description
+
+    @patch("security_audit.phases.filesystem.run_command")
+    def test_noteworthy_cap_flagged_medium(self, mock_run):
+        """cap_net_raw+ep is flagged MEDIUM (noteworthy)."""
+        mock_run.return_value = (
+            "/usr/bin/ping = cap_net_raw+ep\n",
+            "",
+            0,
+        )
+        findings = check_capabilities()
+        assert len(findings) == 1
+        assert findings[0].severity == Severity.MEDIUM
+        assert findings[0].check_id == "FS-016"
+
+    @patch("security_audit.phases.filesystem.run_command")
+    def test_multiple_caps_parsed_correctly(self, mock_run):
+        """Comma-separated caps with mixed severity."""
+        mock_run.return_value = (
+            "/usr/sbin/binary = cap_setuid,cap_net_raw+ep\n",
+            "",
+            0,
+        )
+        findings = check_capabilities()
+        assert len(findings) == 1
+        assert findings[0].severity == Severity.HIGH  # cap_setuid dominates
+
+    @patch("security_audit.phases.filesystem.run_command")
+    def test_harmless_cap_ignored(self, mock_run):
+        """Caps not in either set are ignored."""
+        mock_run.return_value = (
+            "/usr/bin/somebin = cap_chown+ep\n",
+            "",
+            0,
+        )
+        findings = check_capabilities()
+        assert len(findings) == 0
+
+    @patch("security_audit.phases.filesystem.run_command")
+    def test_no_mixed_existing_suid_caps(self, mock_run):
+        """Existing SUID binaries with caps are still flagged."""
+        mock_run.return_value = (
+            "/usr/bin/python3.11 = cap_setuid+ep\n"
+            "/usr/bin/ping = cap_net_raw+ep\n",
+            "",
+            0,
+        )
+        findings = check_capabilities()
+        assert len(findings) == 2
+        assert findings[0].severity == Severity.HIGH
+        assert findings[1].severity == Severity.MEDIUM
 
 
 class TestCheckSGIDBinaries:

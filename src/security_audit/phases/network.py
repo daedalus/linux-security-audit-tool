@@ -4,10 +4,28 @@ import re
 
 from ..core import Finding, Severity, cached_check, run_command
 
+# Well-known ports for expected services on a purpose-built server.
+# These raise a lower severity since they are typically intentional.
+# To suppress known ports entirely or add custom ports, override
+# this set before calling run_network_checks() e.g.:
+#   from security_audit.phases.network import EXPECTED_PORTS
+#   EXPECTED_PORTS.add(8080)
+EXPECTED_PORTS: set[int] = {22, 80, 443, 8443}
+
+# Ports that are almost always a misconfiguration when bound to 0.0.0.0.
+# These should be treated as HIGH regardless of other logic.
+SENSITIVE_PORTS: set[int] = {23, 514, 3306, 5432, 6379, 27017, 9200}
+
 
 @cached_check("check_listening_services")
 def check_listening_services() -> list[Finding]:
-    """Check for listening services on the system."""
+    """Check for listening services on the system.
+
+    Ports in EXPECTED_PORTS (22, 80, 443, 8443 by default) are treated as
+    intentional and downgraded to INFO.  Ports bound to 0.0.0.0 outside of
+    that set remain MEDIUM.  SENSITIVE_PORTS (databases, telnet, syslog)
+    are raised to HIGH.
+    """
     findings = []
 
     stdout, _, rc = run_command("ss -tlnp 2>/dev/null")
@@ -16,7 +34,8 @@ def check_listening_services() -> list[Finding]:
         for line in lines[1:]:
             if "0.0.0.0:" in line or "*:" in line:
                 port_match = re.search(r":(\d+)\s", line)
-                port = port_match.group(1) if port_match else "unknown"
+                port_str = port_match.group(1) if port_match else "unknown"
+                port = int(port_str) if port_str != "unknown" else -1
                 proto = (
                     "TCP"
                     if "tcp" in line.lower()
@@ -24,9 +43,17 @@ def check_listening_services() -> list[Finding]:
                     if "udp" in line.lower()
                     else "TCP"
                 )
+
+                if port in SENSITIVE_PORTS:
+                    severity = Severity.HIGH
+                elif port in EXPECTED_PORTS:
+                    severity = Severity.INFO
+                else:
+                    severity = Severity.MEDIUM
+
                 findings.append(
                     Finding(
-                        severity=Severity.MEDIUM,
+                        severity=severity,
                         check_id="NET-001",
                         title=f"Exposed Network Service (port {port})",
                         description=f"Service listening on all interfaces on port {port}/{proto}",
@@ -374,7 +401,7 @@ def check_ftp_anonymous_access() -> list[Finding]:
 
     # Check proftpd configuration
     for proftpd_conf in ["/etc/proftpd/proftpd.conf", "/etc/proftpd.conf"]:
-        stdout, _, rc = run_command(f"cat {proftpd_conf} 2>/dev/null")
+        stdout, _, rc = run_command(["cat", proftpd_conf])
         if rc == 0 and stdout:
             if "<anonymous" in stdout.lower():
                 findings.append(
@@ -620,7 +647,7 @@ def check_apache_insecure_config() -> list[Finding]:
     no_auth_files: list[str] = []
 
     for conf_file in config_files:
-        content, _, frc = run_command(f"cat {conf_file} 2>/dev/null")
+        content, _, frc = run_command(["cat", conf_file])
         if frc != 0 or not content:
             continue
 
@@ -696,7 +723,7 @@ def check_nginx_insecure_config() -> list[Finding]:
     autoindex_files: list[str] = []
 
     for conf_file in config_files:
-        content, _, frc = run_command(f"cat {conf_file} 2>/dev/null")
+        content, _, frc = run_command(["cat", conf_file])
         if frc != 0 or not content:
             continue
 

@@ -125,3 +125,19 @@ class TestCheckRoot:
         """Test check_root returns True when root."""
         with patch("os.geteuid", return_value=0):
             assert check_root() is True
+
+
+class TestRunCommandWithList:
+    """Tests for run_command with list-form arguments."""
+
+    def test_list_args_no_shell(self):
+        """List-form args should not use shell=True."""
+        stdout, stderr, rc = run_command(["echo", "hello"])
+        assert stdout == "hello"
+        assert rc == 0
+
+    def test_list_args_special_chars(self):
+        """Special chars in paths should not be interpreted by shell."""
+        stdout, stderr, rc = run_command(["echo", "$(whoami)"])
+        assert "$(whoami)" in stdout
+        assert rc == 0

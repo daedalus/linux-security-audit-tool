@@ -98,13 +98,16 @@ class AuditContext:
 
 
 def run_command(
-    cmd: str,
+    cmd: str | list[str],
     timeout: int = 30,
 ) -> tuple[str, str, int]:
-    """Run a shell command and return stdout, stderr, and return code.
+    """Run a command and return stdout, stderr, and return code.
+
+    Pass a string for shell=True execution (for pipelines, redirects, globs).
+    Pass a list to avoid shell injection (preferred when interpolating paths).
 
     Args:
-        cmd: The command to execute.
+        cmd: Command string (shell=True) or argument list (shell=False).
         timeout: Maximum time to wait for command completion in seconds.
 
     Returns:
@@ -112,11 +115,12 @@ def run_command(
     """
     import subprocess
 
+    use_shell = isinstance(cmd, str)
     logger.debug(f"Executing: {cmd}")
     try:
         result = subprocess.run(
             cmd,
-            shell=True,
+            shell=use_shell,
             capture_output=True,
             text=True,
             timeout=timeout,

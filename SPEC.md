@@ -6,7 +6,8 @@ A comprehensive CLI tool for auditing Linux system security posture. It performs
 
 ## Scope
 
-### What IS in scope
+### In SCOPE
+- Linux configuration for security auditing tool
 - CLI interface with Rich console output
 - 9-phase security audit (Phase 0-9)
 - Finding classification and severity scoring
@@ -20,12 +21,15 @@ A comprehensive CLI tool for auditing Linux system security posture. It performs
 - Auto-remediation support (generation of remediation scripts)
 - Check result caching with configurable TTL (default 3600s)
 
-### What is NOT in scope
+### Not in SCOPE
 - GUI interface
 - Web API
 - Real-time monitoring
 - Cloud security scanning (AWS/GCP/Azure)
 - Network vulnerability scanning of external hosts
+- Incident response
+- Binary attestation
+- IOC checking
 
 ## Public API / Interface
 
@@ -191,8 +195,9 @@ from security_audit.core import Finding, Severity, AuditContext
 - Apache insecure configuration
 - Nginx insecure configuration
 
-### Phase 3: File System & Permissions (13 checks)
+### Phase 3: File System & Permissions (14 checks)
 - SUID/SGID binaries
+- Linux capabilities(7) (getcap -r /) — cap_setuid, cap_sys_admin, cap_dac_override, etc.
 - World-writable files/directories
 - World-writable directories without sticky bit
 - Unowned files
