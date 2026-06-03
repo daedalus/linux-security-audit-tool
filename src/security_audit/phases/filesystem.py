@@ -278,7 +278,8 @@ def check_critical_file_permissions() -> list[Finding]:
                 ]:
                     continue
                 if filepath in ["/etc/shadow", "/etc/gshadow"] and actual_perms in [
-                    "-rw-------"
+                    "-rw-------",
+                    "-rw-r-----",
                 ]:
                     continue
                 if filepath in ["/etc/passwd", "/etc/group"] and actual_perms in [
@@ -490,7 +491,7 @@ def check_ld_preload() -> list[Finding]:
     ]
 
     for path in preload_files:
-        stdout, _, rc = run_command(["ls", "-la", path])
+        stdout, _, rc = run_command(["ls", "-lad", path])
         if rc != 0 or not stdout:
             continue
         parts = stdout.split()

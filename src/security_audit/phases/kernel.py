@@ -185,10 +185,6 @@ def check_kernel_module_blacklist() -> list[Finding]:
         "tipc",
         "usb-storage",
         "floppy",
-        "usbhid",
-        "ehci_hcd",
-        "uhci_hcd",
-        "ohci_hcd",
     ]
 
     stdout, _, rc = run_command("cat /etc/modprobe.d/*.conf 2>/dev/null")

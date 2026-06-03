@@ -40,7 +40,7 @@ def check_system_accounts_with_shells() -> list[Finding]:
     findings = []
 
     stdout, _, rc = run_command(
-        "awk -F: '$3 < 1000 && $7 !~ /nologin|false/ {print}' /etc/passwd"
+        "awk -F: '$3 < 1000 && $7 !~ /nologin|false|\\/sbin\\/(sync|shutdown|halt|reboot)/ {print}' /etc/passwd"
     )
     if rc == 0 and stdout:
         findings.append(
@@ -528,17 +528,16 @@ def check_ssh_x11_forwarding() -> list[Finding]:
     paths = ["/etc/ssh/sshd_config", "/etc/ssh/sshd_config.d/*.conf"]
     stdout, _, rc = run_command(f"grep -r '^X11Forwarding' {paths} 2>/dev/null")
     if rc != 0 or not stdout.strip():
-        stdout, _, rc = run_command(f"grep -r '^X11Forwarding no' {paths} 2>/dev/null")
-        if rc == 0:
-            return findings
+        return findings
+    if "X11Forwarding yes" in stdout:
         findings.append(
             Finding(
                 severity=Severity.LOW,
                 check_id="IDENT-019",
-                title="SSH X11Forwarding Not Explicitly Disabled",
-                description="X11Forwarding is not explicitly disabled in sshd_config",
-                evidence="No X11Forwarding directive found",
-                impact="X11 forwarding may be enabled, allowing remote GUI access",
+                title="SSH X11Forwarding Enabled",
+                description="X11Forwarding is explicitly enabled in sshd_config",
+                evidence=stdout.strip(),
+                impact="X11 forwarding allows remote GUI access over SSH connections",
                 remediation="Set 'X11Forwarding no' in /etc/ssh/sshd_config",
                 phase="Phase 1",
             )
@@ -553,16 +552,16 @@ def check_ssh_permit_empty_passwords() -> list[Finding]:
 
     paths = ["/etc/ssh/sshd_config", "/etc/ssh/sshd_config.d/*.conf"]
     stdout, _, rc = run_command(f"grep -r '^PermitEmptyPasswords' {paths} 2>/dev/null")
-    if rc != 0 or "PermitEmptyPasswords no" not in stdout:
+    if rc != 0 or not stdout.strip():
+        return findings
+    if "PermitEmptyPasswords yes" in stdout:
         findings.append(
             Finding(
                 severity=Severity.HIGH,
                 check_id="IDENT-020",
-                title="SSH PermitEmptyPasswords Not Disabled",
+                title="SSH PermitEmptyPasswords Enabled",
                 description="SSH allows authentication with empty passwords",
-                evidence=stdout.strip()
-                if stdout.strip()
-                else "No PermitEmptyPasswords directive",
+                evidence=stdout.strip(),
                 impact="Users with empty passwords can authenticate without providing password",
                 remediation="Set 'PermitEmptyPasswords no' in /etc/ssh/sshd_config",
                 phase="Phase 1",

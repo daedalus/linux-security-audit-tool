@@ -32,37 +32,41 @@ def check_listening_services() -> list[Finding]:
     if rc == 0 and stdout:
         lines = stdout.strip().split("\n")
         for line in lines[1:]:
-            if "0.0.0.0:" in line or "*:" in line:
-                port_match = re.search(r":(\d+)\s", line)
-                port_str = port_match.group(1) if port_match else "unknown"
-                port = int(port_str) if port_str != "unknown" else -1
-                proto = (
-                    "TCP"
-                    if "tcp" in line.lower()
-                    else "UDP"
-                    if "udp" in line.lower()
-                    else "TCP"
-                )
+            local_match = re.search(r"\s+(\S+):(\d+)\s", line)
+            if not local_match:
+                continue
+            local_addr = local_match.group(1)
+            port_str = local_match.group(2)
+            if local_addr not in ("0.0.0.0", "*", "::"):
+                continue
+            port = int(port_str)
+            proto = (
+                "TCP"
+                if "tcp" in line.lower()
+                else "UDP"
+                if "udp" in line.lower()
+                else "TCP"
+            )
 
-                if port in SENSITIVE_PORTS:
-                    severity = Severity.HIGH
-                elif port in EXPECTED_PORTS:
-                    severity = Severity.INFO
-                else:
-                    severity = Severity.MEDIUM
+            if port in SENSITIVE_PORTS:
+                severity = Severity.HIGH
+            elif port in EXPECTED_PORTS:
+                severity = Severity.INFO
+            else:
+                severity = Severity.MEDIUM
 
-                findings.append(
-                    Finding(
-                        severity=severity,
-                        check_id="NET-001",
-                        title=f"Exposed Network Service (port {port})",
-                        description=f"Service listening on all interfaces on port {port}/{proto}",
-                        evidence=line,
-                        impact="Service is accessible from network",
-                        remediation="Bind to 127.0.0.1 or configure firewall",
-                        phase="Phase 2",
-                    )
+            findings.append(
+                Finding(
+                    severity=severity,
+                    check_id="NET-001",
+                    title=f"Exposed Network Service (port {port})",
+                    description=f"Service listening on all interfaces on port {port}/{proto}",
+                    evidence=line,
+                    impact="Service is accessible from network",
+                    remediation="Bind to 127.0.0.1 or configure firewall",
+                    phase="Phase 2",
                 )
+            )
 
     return findings
 
