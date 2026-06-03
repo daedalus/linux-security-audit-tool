@@ -1,0 +1,41 @@
+# Linux Security Audit Tool — Configuration
+# Pass --config security-audit.yaml to the audit command.
+# Omitted keys use built-in defaults.
+
+critical_files:
+  /etc/shadow:
+    perms: "0600"
+    accept_perms: ["-rw-------", "-rw-r-----"]
+  /etc/gshadow:
+    perms: "0600"
+    accept_perms: ["-rw-------", "-rw-r-----"]
+  /etc/sudoers:
+    perms: "0440"
+    accept_perms: ["-r--r-----", "-rw-r-----"]
+  /etc/passwd:
+    perms: "0644"
+    accept_perms: ["-rw-r--r--", "-rw-rw-r--"]
+  /etc/group:
+    perms: "0644"
+    accept_perms: ["-rw-r--r--", "-rw-rw-r--"]
+
+expected_ports: [22, 80, 443, 8443]
+
+sensitive_ports: [23, 514, 3306, 5432, 6379, 27017, 9200]
+
+dangerous_modules:
+  - dccp
+  - sctp
+  - rds
+  - tipc
+  - usb-storage
+  - floppy
+
+preload_paths:
+  - /etc/ld.so.preload
+  - /etc/ld.so.conf
+  - /etc/ld.so.conf.d/
+
+pass_max_days_threshold: 90
+pass_min_days_threshold: 1
+pass_warn_age_threshold: 7

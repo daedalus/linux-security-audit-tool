@@ -1,5 +1,6 @@
 """Phase 3 - File System & Permissions module."""
 
+from ..config import config
 from ..core import Finding, Severity, cached_check, run_command
 
 EXPECTED_SUID = [
@@ -255,37 +256,15 @@ def check_critical_file_permissions() -> list[Finding]:
     """Check permissions on critical system files."""
     findings = []
 
-    critical_files = {
-        "/etc/shadow": ("root", "shadow", "0600"),
-        "/etc/gshadow": ("root", "root", "0600"),
-        "/etc/sudoers": ("root", "root", "0440"),
-        "/etc/passwd": ("root", "root", "0644"),
-        "/etc/group": ("root", "root", "0644"),
-    }
-
-    for filepath, (_, _, perms) in critical_files.items():
+    for filepath, opts in config.critical_files.items():
         stdout, _, rc = run_command(["ls", "-la", filepath])
         if rc == 0 and stdout:
             parts = stdout.split()
             if len(parts) >= 4:
                 actual_perms = parts[0]
-                expected_perm = f"-{perms}"
-                if actual_perms == expected_perm:
-                    continue
-                if filepath == "/etc/sudoers" and actual_perms in [
-                    "-r--r-----",
-                    "-rw-r-----",
-                ]:
-                    continue
-                if filepath in ["/etc/shadow", "/etc/gshadow"] and actual_perms in [
-                    "-rw-------",
-                    "-rw-r-----",
-                ]:
-                    continue
-                if filepath in ["/etc/passwd", "/etc/group"] and actual_perms in [
-                    "-rw-r--r--",
-                    "-rw-rw-r--",
-                ]:
+                expected_perm = f"-{opts['perms']}"
+                accept = opts.get("accept_perms", [])
+                if actual_perms == expected_perm or actual_perms in accept:
                     continue
                 findings.append(
                     Finding(
@@ -295,7 +274,7 @@ def check_critical_file_permissions() -> list[Finding]:
                         description=f"Current permissions: {actual_perms}",
                         evidence=stdout,
                         impact="Sensitive data may be readable by non-root users",
-                        remediation=f"Set permissions: chmod {perms} {filepath}",
+                        remediation=f"Set permissions: chmod {opts['perms']} {filepath}",
                         phase="Phase 3",
                     )
                 )
@@ -484,13 +463,7 @@ def check_ld_preload() -> list[Finding]:
     """
     findings: list[Finding] = []
 
-    preload_files = [
-        "/etc/ld.so.preload",
-        "/etc/ld.so.conf",
-        "/etc/ld.so.conf.d/",
-    ]
-
-    for path in preload_files:
+    for path in config.preload_paths:
         stdout, _, rc = run_command(["ls", "-lad", path])
         if rc != 0 or not stdout:
             continue

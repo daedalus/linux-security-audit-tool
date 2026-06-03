@@ -2,6 +2,7 @@
 
 import os
 
+from ..config import config
 from ..core import Finding, Severity, cached_check, check_root, run_command
 
 
@@ -277,16 +278,16 @@ def check_password_policy() -> list[Finding]:
                 parts = line.split()
                 if len(parts) > 1:
                     days = parts[1]
-                    if int(days) > 90:
+                    if int(days) > config.pass_max_days_threshold:
                         findings.append(
                             Finding(
                                 severity=Severity.MEDIUM,
                                 check_id="IDENT-010",
                                 title="Excessive PASS_MAX_DAYS",
-                                description=f"Password max age: {days} days (recommended <= 90)",
+                                description=f"Password max age: {days} days (recommended <= {config.pass_max_days_threshold})",
                                 evidence=line,
                                 impact="Compromised passwords remain valid longer",
-                                remediation="Set PASS_MAX_DAYS to 90 or less in /etc/login.defs",
+                                remediation=f"Set PASS_MAX_DAYS to {config.pass_max_days_threshold} or less in /etc/login.defs",
                                 phase="Phase 1",
                             )
                         )
@@ -294,16 +295,16 @@ def check_password_policy() -> list[Finding]:
                 parts = line.split()
                 if len(parts) > 1:
                     days = parts[1]
-                    if int(days) < 1:
+                    if int(days) < config.pass_min_days_threshold:
                         findings.append(
                             Finding(
                                 severity=Severity.LOW,
                                 check_id="IDENT-011",
                                 title="PASS_MIN_DAYS Too Low",
-                                description=f"Password min age: {days} days (recommended >= 1)",
+                                description=f"Password min age: {days} days (recommended >= {config.pass_min_days_threshold})",
                                 evidence=line,
                                 impact="Users can change passwords too quickly",
-                                remediation="Set PASS_MIN_DAYS to at least 1 in /etc/login.defs",
+                                remediation=f"Set PASS_MIN_DAYS to at least {config.pass_min_days_threshold} in /etc/login.defs",
                                 phase="Phase 1",
                             )
                         )
@@ -311,16 +312,16 @@ def check_password_policy() -> list[Finding]:
                 parts = line.split()
                 if len(parts) > 1:
                     days = parts[1]
-                    if int(days) < 7:
+                    if int(days) < config.pass_warn_age_threshold:
                         findings.append(
                             Finding(
                                 severity=Severity.LOW,
                                 check_id="IDENT-012",
                                 title="PASS_WARN_AGE Too Low",
-                                description=f"Password warn age: {days} days (recommended >= 7)",
+                                description=f"Password warn age: {days} days (recommended >= {config.pass_warn_age_threshold})",
                                 evidence=line,
                                 impact="Users not warned early enough about expiring passwords",
-                                remediation="Set PASS_WARN_AGE to 7 or more in /etc/login.defs",
+                                remediation=f"Set PASS_WARN_AGE to {config.pass_warn_age_threshold} or more in /etc/login.defs",
                                 phase="Phase 1",
                             )
                         )
@@ -455,8 +456,8 @@ def check_session_timeout() -> list[Finding]:
         "/etc/profile.d/",
     ]
 
-    for config in configs:
-        stdout, _, rc = run_command(f"grep -r 'TMOUT' {config} 2>/dev/null")
+    for cfg in configs:
+        stdout, _, rc = run_command(f"grep -r 'TMOUT' {cfg} 2>/dev/null")
         if rc == 0 and stdout and stdout.strip():
             return findings
 
@@ -488,9 +489,9 @@ def check_umask() -> list[Finding]:
         "/etc/bash.bashrc",
     ]
 
-    for config in configs:
+    for cfg in configs:
         stdout, _, rc = run_command(
-            f"grep -E '^\\s*[Uu][Mm][Aa][Ss][Kk]' {config} 2>/dev/null"
+            f"grep -E '^\\s*[Uu][Mm][Aa][Ss][Kk]' {cfg} 2>/dev/null"
         )
         if rc == 0 and stdout and stdout.strip():
             for line in stdout.strip().split("\n"):

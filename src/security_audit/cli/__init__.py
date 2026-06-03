@@ -9,6 +9,7 @@ from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
 from security_audit import __version__
+from security_audit.config import load_config
 from security_audit.core import (
     Finding,
     Severity,
@@ -294,6 +295,12 @@ def _handle_audit_output(
     default=3600,
     help="Cache TTL in seconds (default: 3600)",
 )
+@click.option(
+    "--config",
+    type=click.Path(exists=True),
+    default=None,
+    help="Path to YAML configuration file",
+)
 def audit(
     output: str | None,
     phases: tuple[str, ...],
@@ -308,12 +315,14 @@ def audit(
     remediate_script: str | None,
     cache: bool,
     cache_ttl: int,
+    config: str | None,
 ) -> None:
     """Run a full security audit."""
     if debug:
         set_debug(True)
 
     init_cache(enabled=cache, ttl=cache_ttl)
+    load_config(config)
 
     if not check_root():
         console.print(

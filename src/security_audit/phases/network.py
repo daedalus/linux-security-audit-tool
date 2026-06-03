@@ -2,28 +2,17 @@
 
 import re
 
+from ..config import config
 from ..core import Finding, Severity, cached_check, run_command
-
-# Well-known ports for expected services on a purpose-built server.
-# These raise a lower severity since they are typically intentional.
-# To suppress known ports entirely or add custom ports, override
-# this set before calling run_network_checks() e.g.:
-#   from security_audit.phases.network import EXPECTED_PORTS
-#   EXPECTED_PORTS.add(8080)
-EXPECTED_PORTS: set[int] = {22, 80, 443, 8443}
-
-# Ports that are almost always a misconfiguration when bound to 0.0.0.0.
-# These should be treated as HIGH regardless of other logic.
-SENSITIVE_PORTS: set[int] = {23, 514, 3306, 5432, 6379, 27017, 9200}
 
 
 @cached_check("check_listening_services")
 def check_listening_services() -> list[Finding]:
     """Check for listening services on the system.
 
-    Ports in EXPECTED_PORTS (22, 80, 443, 8443 by default) are treated as
+    Ports in expected_ports (22, 80, 443, 8443 by default) are treated as
     intentional and downgraded to INFO.  Ports bound to 0.0.0.0 outside of
-    that set remain MEDIUM.  SENSITIVE_PORTS (databases, telnet, syslog)
+    that set remain MEDIUM.  sensitive_ports (databases, telnet, syslog)
     are raised to HIGH.
     """
     findings = []
@@ -48,9 +37,9 @@ def check_listening_services() -> list[Finding]:
                 else "TCP"
             )
 
-            if port in SENSITIVE_PORTS:
+            if port in config.sensitive_ports:
                 severity = Severity.HIGH
-            elif port in EXPECTED_PORTS:
+            elif port in config.expected_ports:
                 severity = Severity.INFO
             else:
                 severity = Severity.MEDIUM

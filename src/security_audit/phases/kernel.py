@@ -1,5 +1,6 @@
 """Phase 5 - Kernel & OS Hardening module."""
 
+from ..config import config
 from ..core import Finding, Severity, cached_check, run_command
 
 
@@ -178,15 +179,6 @@ def check_kernel_module_blacklist() -> list[Finding]:
     """Check if dangerous kernel modules are blacklisted."""
     findings = []
 
-    dangerous_modules = [
-        "dccp",
-        "sctp",
-        "rds",
-        "tipc",
-        "usb-storage",
-        "floppy",
-    ]
-
     stdout, _, rc = run_command("cat /etc/modprobe.d/*.conf 2>/dev/null")
     if rc != 0 or not stdout:
         findings.append(
@@ -202,7 +194,7 @@ def check_kernel_module_blacklist() -> list[Finding]:
             )
         )
     else:
-        for module in dangerous_modules:
+        for module in config.dangerous_modules:
             if f"blacklist {module}" not in stdout.lower():
                 findings.append(
                     Finding(
