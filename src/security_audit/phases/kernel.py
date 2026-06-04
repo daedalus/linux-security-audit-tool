@@ -580,6 +580,11 @@ def check_selinux_apparmor_enforcing() -> list[Finding]:
                 )
             )
     else:
+        stdout, _, rc = run_command(
+            "cat /sys/module/apparmor/parameters/enabled 2>/dev/null"
+        )
+        if rc == 0 and stdout.strip() == "Y":
+            return findings
         stdout, _, rc = run_command("aa-status --enabled 2>/dev/null")
         if rc != 0:
             findings.append(
