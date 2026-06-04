@@ -100,6 +100,12 @@ def check_apparmor_status() -> list[Finding]:
     findings = []
 
     stdout, _, rc = run_command(
+        "cat /sys/module/apparmor/parameters/enabled 2>/dev/null"
+    )
+    if rc == 0 and stdout.strip() == "Y":
+        return findings
+
+    stdout, _, rc = run_command(
         "aa-status 2>/dev/null || apparmor_status 2>/dev/null || echo 'not installed'"
     )
     if rc == 0:
