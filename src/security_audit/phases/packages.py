@@ -153,7 +153,7 @@ def check_unnecessary_packages() -> list[Finding]:
     """Check for unnecessary packages."""
     findings = []
 
-    unnecessary = ["telnet", "xinetd", "rsh-server", "talk"]
+    unnecessary = ["telnetd", "xinetd", "rsh-server", "talk"]
 
     stdout, _, rc = run_command("dpkg -l 2>/dev/null")
     if rc == 0 and stdout:

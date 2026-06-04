@@ -843,7 +843,9 @@ def check_path_hijacking() -> list[Finding]:
     for i, directory in enumerate(path.split(":")):
         if not directory:
             continue
-        stdout, _, rc = run_command(["ls", "-lad", directory])
+        stdout, _, rc = run_command(["ls", "-lad", directory + "/"])
+        if rc != 0 or not stdout:
+            stdout, _, rc = run_command(["ls", "-lad", directory])
         if rc != 0 or not stdout:
             continue
         parts = stdout.split()

@@ -35,7 +35,7 @@ class TestCheckUnnecessaryPackages:
     @patch("security_audit.phases.packages.run_command")
     def test_unnecessary_package_found(self, mock_run):
         """Test when unnecessary package found."""
-        mock_run.return_value = ("ii  telnet    1.0.0", "", 0)
+        mock_run.return_value = ("ii  telnetd    1.0.0", "", 0)
         findings = check_unnecessary_packages()
         assert len(findings) == 1
         assert findings[0].check_id == "PKG-004"
