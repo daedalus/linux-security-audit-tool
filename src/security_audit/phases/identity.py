@@ -756,6 +756,11 @@ def _check_mysql_creds(paths: list[str]) -> list[Finding]:
 def _check_redis_auth() -> list[Finding]:
     """Check Redis requirepass configuration."""
     stdout, _, rc = run_command(
+        "dpkg -l redis-server 2>/dev/null | grep -q '^ii'"
+    )
+    if rc != 0:
+        return []
+    stdout, _, rc = run_command(
         "grep -E '^requirepass' /etc/redis/redis.conf 2>/dev/null"
     )
     if rc == 0 and stdout.strip():

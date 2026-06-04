@@ -292,6 +292,7 @@ class TestCheckWeakServiceCredentials:
         mock_run.side_effect = [
             ("[client]\npassword = s3cret\n", "", 0),  # cat /etc/mysql/my.cnf
             ("", "", 1),  # cat /root/.my.cnf — not found
+            ("", "", 1),  # dpkg -l redis-server — not installed
             ("", "", 1),  # grep requirepass — not found
             ("", "", 1),  # grep trust — not found
             ("", "", 1),  # ls -la /root/.pgpass — not found
@@ -305,6 +306,7 @@ class TestCheckWeakServiceCredentials:
         mock_run.side_effect = [
             ("", "", 1),  # cat /etc/mysql/my.cnf
             ("", "", 1),  # cat /root/.my.cnf
+            ("ii  redis-server  5:7.4.2-1  amd64  ...", "", 0),  # dpkg — installed
             ("", "", 1),  # grep requirepass — no match
             ("", "", 1),  # grep trust — not found
             ("", "", 1),  # ls -la /root/.pgpass — not found
@@ -318,6 +320,7 @@ class TestCheckWeakServiceCredentials:
         mock_run.side_effect = [
             ("", "", 1),  # cat /etc/mysql/my.cnf
             ("", "", 1),  # cat /root/.my.cnf
+            ("ii  redis-server  5:7.4.2-1  amd64  ...", "", 0),  # dpkg — installed
             ("requirepass changeme", "", 0),  # grep requirepass — set
             ("trust", "", 0),  # grep trust — found
             ("", "", 1),  # ls -la /root/.pgpass — not found
@@ -331,6 +334,7 @@ class TestCheckWeakServiceCredentials:
         mock_run.side_effect = [
             ("", "", 1),  # cat /etc/mysql/my.cnf — not found
             ("", "", 1),  # cat /root/.my.cnf
+            ("ii  redis-server  5:7.4.2-1  amd64  ...", "", 0),  # dpkg — installed
             ("requirepass strongpass", "", 0),  # Redis has password
             ("", "", 1),  # grep trust — not found
             ("", "", 1),  # ls -la /root/.pgpass — not found
