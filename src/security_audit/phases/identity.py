@@ -41,7 +41,7 @@ def check_system_accounts_with_shells() -> list[Finding]:
     findings = []
 
     stdout, _, rc = run_command(
-        "awk -F: '$3 < 1000 && $7 !~ /nologin|false|\\/sbin\\/(sync|shutdown|halt|reboot)/ {print}' /etc/passwd"
+        "awk -F: '$3 < 1000 && $7 !~ /nologin|false|\\/(sync|shutdown|halt|reboot)( |$)/ {print}' /etc/passwd"
     )
     if rc == 0 and stdout:
         findings.append(
